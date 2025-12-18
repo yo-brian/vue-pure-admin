@@ -1,37 +1,14 @@
 import { http } from "@/utils/http";
+import type { DataInfo } from "@/utils/auth";
 
 export type UserResult = {
   success: boolean;
-  data: {
-    /** 头像 */
-    avatar: string;
-    /** 用户名 */
-    username: string;
-    /** 昵称 */
-    nickname: string;
-    /** 当前登录用户的角色 */
-    roles: Array<string>;
-    /** 按钮级别权限 */
-    permissions: Array<string>;
-    /** `token` */
-    accessToken: string;
-    /** 用于调用刷新`accessToken`的接口时所需的`token` */
-    refreshToken: string;
-    /** `accessToken`的过期时间（格式'xxxx/xx/xx xx:xx:xx'） */
-    expires: Date;
-  };
+  data: DataInfo<Date>;
 };
 
 export type RefreshTokenResult = {
   success: boolean;
-  data: {
-    /** `token` */
-    accessToken: string;
-    /** 用于调用刷新`accessToken`的接口时所需的`token` */
-    refreshToken: string;
-    /** `accessToken`的过期时间（格式'xxxx/xx/xx xx:xx:xx'） */
-    expires: Date;
-  };
+  data: Pick<DataInfo<Date>, "accessToken" | "refreshToken" | "expires">;
 };
 
 export type UserInfo = {
@@ -68,14 +45,95 @@ type ResultTable = {
   };
 };
 
+type JwtLoginResponse = {
+  access?: string;
+  refresh?: string;
+  accessToken?: string;
+  refreshToken?: string;
+};
+
+function parseJwtExpToDate(token: string): Date {
+  // 仅用于读取 exp（无需验签），用于前端计算 accessToken 过期时间
+  const payload = token.split(".")[1];
+  if (!payload) return new Date(Date.now() + 60 * 60 * 1000);
+  try {
+    const json = JSON.parse(
+      decodeURIComponent(
+        atob(payload.replace(/-/g, "+").replace(/_/g, "/"))
+          .split("")
+          .map(c => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+          .join("")
+      )
+    );
+    const exp = typeof json?.exp === "number" ? json.exp : undefined;
+    return exp ? new Date(exp * 1000) : new Date(Date.now() + 60 * 60 * 1000);
+  } catch {
+    return new Date(Date.now() + 60 * 60 * 1000);
+  }
+}
+
 /** 登录 */
 export const getLogin = (data?: object) => {
-  return http.request<UserResult>("post", "/login", { data });
+  return http
+    .request<JwtLoginResponse>("post", "/auth/login/", { data })
+    .then(res => {
+      const access =
+        res?.access || (res as any)?.accessToken || (res as any)?.data?.access;
+      const refresh =
+        res?.refresh ||
+        (res as any)?.refreshToken ||
+        (res as any)?.data?.refresh;
+
+      if (!access || !refresh) {
+        return Promise.resolve({
+          success: false,
+          data: null
+        } as unknown as UserResult);
+      }
+
+      const expires = parseJwtExpToDate(access);
+      const username = (data as any)?.username ?? "";
+
+      return {
+        success: true,
+        data: {
+          accessToken: access,
+          refreshToken: refresh,
+          expires,
+          username,
+          nickname: username,
+          avatar: "",
+          roles: [],
+          permissions: []
+        }
+      } satisfies UserResult;
+    });
 };
 
 /** 刷新`token` */
 export const refreshTokenApi = (data?: object) => {
-  return http.request<RefreshTokenResult>("post", "/refresh-token", { data });
+  const refreshToken = (data as any)?.refreshToken ?? (data as any)?.refresh;
+  return http
+    .request<{ access?: string; accessToken?: string }>("post", "/auth/refresh/", {
+      data: { refresh: refreshToken }
+    })
+    .then(res => {
+      const access = res?.access || (res as any)?.accessToken;
+      if (!access || !refreshToken) {
+        return Promise.resolve({
+          success: false,
+          data: null
+        } as unknown as RefreshTokenResult);
+      }
+      return {
+        success: true,
+        data: {
+          accessToken: access,
+          refreshToken,
+          expires: parseJwtExpToDate(access)
+        }
+      } satisfies RefreshTokenResult;
+    });
 };
 
 /** 账户设置-个人信息 */

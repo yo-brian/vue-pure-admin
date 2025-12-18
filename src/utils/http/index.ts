@@ -12,9 +12,12 @@ import type {
 import { stringify } from "qs";
 import { getToken, formatToken } from "@/utils/auth";
 import { useUserStoreHook } from "@/store/modules/user";
+import { message } from "@/utils/message";
 
 // 相关配置请参考：www.axios-js.com/zh-cn/docs/#axios-request-config-1
 const defaultConfig: AxiosRequestConfig = {
+  // 后端接口基础路径（总要求：统一使用 http://localhost:8000/api/）
+  baseURL: "http://localhost:8000/api/",
   // 请求超时时间
   timeout: 10000,
   headers: {
@@ -70,7 +73,14 @@ class PureHttp {
           return config;
         }
         /** 请求白名单，放置一些不需要`token`的接口（通过设置请求白名单，防止`token`过期后再请求造成的死循环问题） */
-        const whiteList = ["/refresh-token", "/login"];
+        const whiteList = [
+          // 兼容模板默认地址
+          "/refresh-token",
+          "/login",
+          // 后端 JWT 接口（DRF simplejwt）
+          "/auth/login/",
+          "/auth/refresh/"
+        ];
         return whiteList.some(url => config.url.endsWith(url))
           ? config
           : new Promise(resolve => {
@@ -132,6 +142,21 @@ class PureHttp {
       (error: PureHttpError) => {
         const $error = error;
         $error.isCancelRequest = Axios.isCancel($error);
+
+        // 简要提示接口错误（总要求：对接口错误用 Element Plus message 做提示）
+        if (!$error.isCancelRequest) {
+          const status = $error.response?.status;
+          const data: any = $error.response?.data;
+          const detail =
+            data?.detail ||
+            data?.message ||
+            data?.error ||
+            (typeof data === "string" ? data : "") ||
+            $error.message;
+          message(detail || "接口请求失败", { type: "error" });
+          // 401 时清理登录态，避免卡死在鉴权循环里
+          if (status === 401) useUserStoreHook().logOut();
+        }
         // 所有的响应异常 区分来源为取消请求/非取消请求
         return Promise.reject($error);
       }

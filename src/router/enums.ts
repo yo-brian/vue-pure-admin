@@ -27,7 +27,11 @@ const home = 0, // 平台规定只有 home 路由的 rank 才能为 0 ，所以�
   ppt = 24,
   mind = 25,
   guide = 26,
-  menuoverflow = 27;
+  menuoverflow = 27,
+  tasks = 28,
+  hazards = 29,
+  config = 30,
+  dashboard = 31;
 
 export {
   home,
@@ -57,5 +61,9 @@ export {
   ppt,
   mind,
   guide,
-  menuoverflow
+  menuoverflow,
+  tasks,
+  hazards,
+  config,
+  dashboard
 };

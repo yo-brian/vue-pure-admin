@@ -68,6 +68,7 @@ const onLogin = async (formEl: FormInstance | undefined) => {
   await formEl.validate(valid => {
     if (valid) {
       loading.value = true;
+      // 对接后端 JWT 登录：提交用户名密码到 /api/auth/login/，成功后保存 token 并进入系统
       useUserStoreHook()
         .loginByUsername({
           username: ruleForm.username,

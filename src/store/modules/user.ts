@@ -77,16 +77,14 @@ export const useUserStore = defineStore("pure-user", {
     },
     /** 登入 */
     async loginByUsername(data) {
-      return new Promise<UserResult>((resolve, reject) => {
-        getLogin(data)
-          .then(data => {
-            if (data?.success) setToken(data.data);
-            resolve(data);
-          })
-          .catch(error => {
-            reject(error);
-          });
-      });
+      try {
+        const res = await getLogin(data);
+        if (res?.success) setToken(res.data);
+        return res;
+      } catch {
+        // 具体错误提示在 http 拦截器里统一处理
+        return { success: false } as UserResult;
+      }
     },
     /** 前端登出（不调用接口） */
     logOut() {
@@ -100,18 +98,13 @@ export const useUserStore = defineStore("pure-user", {
     },
     /** 刷新`token` */
     async handRefreshToken(data) {
-      return new Promise<RefreshTokenResult>((resolve, reject) => {
-        refreshTokenApi(data)
-          .then(data => {
-            if (data) {
-              setToken(data.data);
-              resolve(data);
-            }
-          })
-          .catch(error => {
-            reject(error);
-          });
-      });
+      try {
+        const res = await refreshTokenApi(data);
+        if (res?.success) setToken(res.data as any);
+        return res;
+      } catch {
+        return { success: false } as RefreshTokenResult;
+      }
     }
   }
 });
