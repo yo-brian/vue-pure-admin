@@ -19,6 +19,15 @@ export default {
       }
     },
     {
+      path: "/tasks/detail/:id",
+      name: "TaskDetail",
+      component: () => import("@/views/tasks/detail/index.vue"),
+      meta: {
+        title: "任务详情",
+        showLink: false
+      }
+    },
+    {
       path: "/tasks/all",
       name: "TasksAll",
       component: () => import("@/views/tasks/all/index.vue"),
@@ -26,7 +35,15 @@ export default {
         title: "全部任务",
         showParent: true
       }
+    },
+    {
+      path: "/tasks/create-adhoc",
+      name: "TaskCreateAdhoc",
+      component: () => import("@/views/tasks/create-adhoc/index.vue"),
+      meta: {
+        title: "新建临时任务",
+        showParent: true
+      }
     }
   ]
 } satisfies RouteConfigsTable;
-
