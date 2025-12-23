@@ -44,6 +44,15 @@ export default {
         title: "新建临时任务",
         showParent: true
       }
+    },
+    {
+      path: "/tasks/edit/:id",
+      name: "TaskEdit",
+      component: () => import("@/views/tasks/edit/index.vue"),
+      meta: {
+        title: "编辑任务",
+        showLink: false
+      }
     }
   ]
 } satisfies RouteConfigsTable;

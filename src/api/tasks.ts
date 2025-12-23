@@ -44,10 +44,21 @@ export type TaskListParams = Partial<{
   assignee: number;
   is_emergency: boolean;
   all: boolean;
+  page: number;
+  page_size: number;
 }>;
 
+export type TaskListResponse = {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: Task[];
+};
+
 export function getTasks(params?: TaskListParams) {
-  return http.get<Task[], TaskListParams>("/tasks/", { params });
+  return http.get<Task[] | TaskListResponse, TaskListParams>("/tasks/", {
+    params
+  });
 }
 
 export function getTaskDetail(id: number) {
@@ -79,4 +90,23 @@ export function createAdhocTask(payload: {
   custom_check_items?: string[];
 }) {
   return http.post<TaskDetail, any>("/tasks/create-adhoc/", { data: payload });
+}
+
+export function updateTask(
+  id: number,
+  payload: Partial<{
+    title: string;
+    area: number;
+    template: number | null;
+    assignee: number;
+    due_date: string;
+    is_emergency: boolean;
+    custom_check_items: string[];
+  }>
+) {
+  return http.request<TaskDetail>("patch", `/tasks/${id}/`, { data: payload });
+}
+
+export function deleteTask(id: number) {
+  return http.request<void>("delete", `/tasks/${id}/`);
 }

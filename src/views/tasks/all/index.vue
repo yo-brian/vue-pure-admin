@@ -7,7 +7,12 @@
 import { computed, onMounted, ref } from "vue";
 import dayjs from "dayjs";
 import { useRouter } from "vue-router";
-import { getTasks, type Task, type TaskStatus, type TaskType } from "@/api/tasks";
+import {
+  getTasks,
+  type Task,
+  type TaskStatus,
+  type TaskType
+} from "@/api/tasks";
 import { getAreas } from "@/api/config";
 
 const router = useRouter();
@@ -15,6 +20,7 @@ const router = useRouter();
 const loading = ref(false);
 const tasks = ref<Task[]>([]);
 const areaNameMap = ref<Record<number, string>>({});
+const pagination = ref({ current: 1, pageSize: 10, total: 0 });
 
 const statusFilter = ref<TaskStatus | "">("");
 const typeFilter = ref<TaskType | "">("");
@@ -72,15 +78,42 @@ async function fetchAreas() {
 async function fetchTasks() {
   loading.value = true;
   try {
-    const params: any = { all: true };
+    const params: any = {
+      all: true,
+      page: pagination.value.current,
+      page_size: pagination.value.pageSize
+    };
     if (filters.value.status) params.status = filters.value.status;
     if (filters.value.task_type) params.task_type = filters.value.task_type;
     if (filters.value.is_emergency)
       params.is_emergency = filters.value.is_emergency === "true";
-    tasks.value = await getTasks(params);
+    const res = await getTasks(params);
+    if (Array.isArray(res)) {
+      tasks.value = res;
+      pagination.value.total = res.length;
+    } else {
+      tasks.value = res.results;
+      pagination.value.total = res.count;
+    }
   } finally {
     loading.value = false;
   }
+}
+
+function handleFilterChange() {
+  pagination.value.current = 1;
+  fetchTasks();
+}
+
+function onPageSizeChange(size: number) {
+  pagination.value.pageSize = size;
+  pagination.value.current = 1;
+  fetchTasks();
+}
+
+function onCurrentChange(current: number) {
+  pagination.value.current = current;
+  fetchTasks();
 }
 
 onMounted(async () => {
@@ -101,8 +134,8 @@ onMounted(async () => {
               placeholder="状态"
               clearable
               style="width: 140px"
-              @change="fetchTasks"
-              @clear="fetchTasks"
+              @change="handleFilterChange"
+              @clear="handleFilterChange"
             >
               <el-option
                 v-for="opt in statusOptions"
@@ -116,8 +149,8 @@ onMounted(async () => {
               placeholder="类型"
               clearable
               style="width: 120px"
-              @change="fetchTasks"
-              @clear="fetchTasks"
+              @change="handleFilterChange"
+              @clear="handleFilterChange"
             >
               <el-option
                 v-for="opt in typeOptions"
@@ -131,8 +164,8 @@ onMounted(async () => {
               placeholder="紧急"
               clearable
               style="width: 120px"
-              @change="fetchTasks"
-              @clear="fetchTasks"
+              @change="handleFilterChange"
+              @clear="handleFilterChange"
             >
               <el-option
                 v-for="opt in emergencyOptions"
@@ -143,8 +176,11 @@ onMounted(async () => {
             </el-select>
           </div>
           <div class="flex items-center gap-2">
-            <el-button @click="fetchTasks" :loading="loading">刷新</el-button>
-            <el-button type="primary" @click="router.push('/tasks/create-adhoc')">
+            <el-button :loading="loading" @click="fetchTasks">刷新</el-button>
+            <el-button
+              type="primary"
+              @click="router.push('/tasks/create-adhoc')"
+            >
               新建临时任务
             </el-button>
           </div>
@@ -189,6 +225,19 @@ onMounted(async () => {
           </template>
         </el-table-column>
       </el-table>
+
+      <div class="mt-4 flex justify-end">
+        <el-pagination
+          v-model:currentPage="pagination.current"
+          :page-size="pagination.pageSize"
+          :total="pagination.total"
+          :page-sizes="[10, 20, 50]"
+          :background="true"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="onPageSizeChange"
+          @current-change="onCurrentChange"
+        />
+      </div>
     </el-card>
   </div>
 </template>

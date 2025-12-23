@@ -65,8 +65,26 @@ export const constantRoutes: Array<RouteRecordRaw> = formatTwoStageRoutes(
 const initConstantRoutes: Array<RouteRecordRaw> = cloneDeep(constantRoutes);
 
 /** 用于渲染菜单，保持原始层级 */
+const topMenuPaths = new Set(["/dashboard", "/tasks", "/hazards", "/config"]);
+const rawMenus = routes.flat(Infinity);
+const originalChildren = ascending(
+  rawMenus.filter(route => !topMenuPaths.has(route.path))
+);
+const constantMenusBase: Array<RouteComponent> = [
+  ...rawMenus.filter(route => topMenuPaths.has(route.path)),
+  {
+    path: "/original",
+    redirect: originalChildren[0]?.path,
+    meta: {
+      icon: "ri/folder-2-line",
+      title: "原菜单",
+      rank: 999
+    },
+    children: originalChildren
+  }
+];
 export const constantMenus: Array<RouteComponent> = ascending(
-  routes.flat(Infinity)
+  constantMenusBase
 ).concat(...remainingRouter);
 
 /** 不参与菜单的路由 */
