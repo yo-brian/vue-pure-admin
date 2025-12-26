@@ -12,13 +12,18 @@ export type Task = {
   id: number;
   task_type: TaskType;
   title: string;
+  description?: string | null;
+  equipment_name?: string | null;
+  equipment_code?: string | null;
   area: number;
   template: number | null;
   assignee: number;
+  assignee_name?: string | null;
   due_date: string;
   status: TaskStatus;
   is_emergency: boolean;
   created_by: number;
+  reported_at?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -81,7 +86,11 @@ export function submitTaskResults(
 }
 
 export function createAdhocTask(payload: {
+  task_type?: TaskType;
   title: string;
+  description?: string | null;
+  equipment_name?: string | null;
+  equipment_code?: string | null;
   area_id: number;
   template_id?: number | null;
   assignee_id: number;
@@ -95,7 +104,11 @@ export function createAdhocTask(payload: {
 export function updateTask(
   id: number,
   payload: Partial<{
+    task_type: TaskType;
     title: string;
+    description?: string | null;
+    equipment_name?: string | null;
+    equipment_code?: string | null;
     area: number;
     template: number | null;
     assignee: number;

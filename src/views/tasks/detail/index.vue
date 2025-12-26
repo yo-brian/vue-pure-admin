@@ -25,6 +25,12 @@ const loading = ref(false);
 const submitting = ref(false);
 
 const taskDetail = ref<TaskDetail | null>(null);
+const descriptionLabel = "\u63cf\u8ff0";
+
+const descriptionHtml = computed(() => {
+  const value = taskDetail.value?.description ?? "";
+  return value.trim() ? value : "-";
+});
 
 // 区域、检查项映射（后端当前返回的是 id，前端做一次映射即可）
 const areaNameMap = ref<Record<number, string>>({});
@@ -159,6 +165,16 @@ onMounted(async () => {
         <el-descriptions-item label="状态">
           {{ statusLabel(taskDetail.status) }}
         </el-descriptions-item>
+        <el-descriptions-item :label="descriptionLabel" :span="2">
+          <div v-html="descriptionHtml" />
+        </el-descriptions-item>
+
+        <el-descriptions-item label="设备名称">
+          {{ taskDetail.equipment_name || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="设备编号">
+          {{ taskDetail.equipment_code || "-" }}
+        </el-descriptions-item>
       </el-descriptions>
 
       <el-table
@@ -192,11 +208,7 @@ onMounted(async () => {
       </el-table>
 
       <div class="mt-4 flex justify-end">
-        <el-button
-          type="primary"
-          :loading="submitting"
-          @click="handleSubmit"
-        >
+        <el-button type="primary" :loading="submitting" @click="handleSubmit">
           提交检查结果
         </el-button>
       </div>

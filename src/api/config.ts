@@ -11,6 +11,14 @@ export type CheckTemplate = {
   name: string;
   description: string;
   frequency: "daily" | "weekly" | "monthly" | "yearly";
+  area: number | null;
+  task_type: "scheduled" | "adhoc" | null;
+  default_due_days: number | null;
+  is_emergency_default: boolean;
+  default_hazard_level: "minor" | "major" | null;
+  attachment_required: boolean;
+  attachment_count: number | null;
+  custom_items?: string[];
 };
 
 export type CheckItem = {
@@ -18,6 +26,10 @@ export type CheckItem = {
   template: number;
   name: string;
   description: string;
+  group_name?: string | null;
+  sort_order?: number;
+  default_result?: "normal" | "abnormal" | "not_applicable" | null;
+  remark_hint?: string | null;
 };
 
 type PaginatedResponse<T> = {
@@ -72,6 +84,14 @@ export function createTemplate(payload: {
   name: string;
   description?: string;
   frequency: CheckTemplate["frequency"];
+  area?: number | null;
+  task_type?: CheckTemplate["task_type"];
+  default_due_days?: number | null;
+  is_emergency_default?: boolean;
+  default_hazard_level?: CheckTemplate["default_hazard_level"];
+  attachment_required?: boolean;
+  attachment_count?: number | null;
+  custom_items?: string[];
 }) {
   return http.post<CheckTemplate, any>("/templates/", { data: payload });
 }
@@ -82,6 +102,14 @@ export function updateTemplate(
     name: string;
     description?: string;
     frequency: CheckTemplate["frequency"];
+    area?: number | null;
+    task_type?: CheckTemplate["task_type"];
+    default_due_days?: number | null;
+    is_emergency_default?: boolean;
+    default_hazard_level?: CheckTemplate["default_hazard_level"];
+    attachment_required?: boolean;
+    attachment_count?: number | null;
+    custom_items?: string[];
   }>
 ) {
   return http.request<CheckTemplate>("patch", `/templates/${id}/`, {

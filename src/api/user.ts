@@ -31,6 +31,27 @@ export type UserInfoResult = {
   data: UserInfo;
 };
 
+export type AppUser = {
+  id: number;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  department?: string | null;
+  role: "admin" | "inspector" | "manager";
+};
+
+type PaginatedResponse<T> = {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+};
+
+function unwrapPaginated<T>(data: T[] | PaginatedResponse<T>) {
+  return Array.isArray(data) ? data : data.results;
+}
+
 type ResultTable = {
   success: boolean;
   data?: {
@@ -114,9 +135,13 @@ export const getLogin = (data?: object) => {
 export const refreshTokenApi = (data?: object) => {
   const refreshToken = (data as any)?.refreshToken ?? (data as any)?.refresh;
   return http
-    .request<{ access?: string; accessToken?: string }>("post", "/auth/refresh/", {
-      data: { refresh: refreshToken }
-    })
+    .request<{ access?: string; accessToken?: string }>(
+      "post",
+      "/auth/refresh/",
+      {
+        data: { refresh: refreshToken }
+      }
+    )
     .then(res => {
       const access = res?.access || (res as any)?.accessToken;
       if (!access || !refreshToken) {
@@ -145,3 +170,15 @@ export const getMine = (data?: object) => {
 export const getMineLogs = (data?: object) => {
   return http.request<ResultTable>("get", "/mine-logs", { data });
 };
+
+export function getCurrentUser() {
+  return http.get<AppUser, any>("/users/me/");
+}
+
+export function getUsers() {
+  return http
+    .get<AppUser[] | PaginatedResponse<AppUser>, any>("/users/", {
+      params: { page_size: 100 }
+    })
+    .then(unwrapPaginated);
+}

@@ -25,7 +25,7 @@ const pagination = ref({ current: 1, pageSize: 10, total: 0 });
 const areaNameMap = ref<Record<number, string>>({});
 
 // 状态筛选：为空表示不过滤
-const statusFilter = ref<TaskStatus | "">("");
+const statusFilter = ref<TaskStatus | "">("pending");
 
 const statusOptions: Array<{ label: string; value: TaskStatus }> = [
   { label: "待执行", value: "pending" },
@@ -42,6 +42,14 @@ const currentUserId = computed(() => {
 
 function taskTypeLabel(taskType: Task["task_type"]) {
   return taskType === "scheduled" ? "计划" : "临时";
+}
+
+function assigneeLabel(task: Task) {
+  return task.assignee_name ?? `#${task.assignee}`;
+}
+
+function createdAtLabel(task: Task) {
+  return dayjs(task.created_at).format("YYYY-MM-DD HH:mm");
 }
 
 function statusLabel(status: TaskStatus) {
@@ -163,10 +171,20 @@ onMounted(async () => {
       </template>
 
       <el-table :data="tasks" border :loading="loading" style="width: 100%">
+        <el-table-column label="任务生成时间" min-width="160">
+          <template #default="{ row }">
+            {{ createdAtLabel(row) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="title" label="标题" min-width="180" />
         <el-table-column label="区域名称" min-width="140">
           <template #default="{ row }">
             {{ areaNameMap[row.area] ?? `#${row.area}` }}
+          </template>
+        </el-table-column>
+        <el-table-column label="执行人" min-width="120">
+          <template #default="{ row }">
+            {{ assigneeLabel(row) }}
           </template>
         </el-table-column>
         <el-table-column label="任务类型" width="100">
