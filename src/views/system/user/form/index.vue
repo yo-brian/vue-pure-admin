@@ -10,7 +10,11 @@ const props = withDefaults(defineProps<FormProps>(), {
     title: "新增",
     higherDeptOptions: [],
     parentId: 0,
+    roleOptions: [],
+    roleId: null,
     nickname: "",
+    first_name: "",
+    last_name: "",
     username: "",
     password: "",
     phone: "",
@@ -60,11 +64,47 @@ defineExpose({ getRef });
         </el-form-item>
       </re-col>
       <re-col :value="12" :xs="24" :sm="24">
+        <el-form-item label="名" prop="first_name">
+          <el-input
+            v-model="newFormInline.first_name"
+            clearable
+            placeholder="请输入名"
+          />
+        </el-form-item>
+      </re-col>
+      <re-col :value="12" :xs="24" :sm="24">
         <el-form-item label="用户名称" prop="username">
           <el-input
             v-model="newFormInline.username"
             clearable
+            :disabled="newFormInline.title !== '新增'"
             placeholder="请输入用户名称"
+          />
+        </el-form-item>
+      </re-col>
+      <re-col :value="12" :xs="24" :sm="24">
+        <el-form-item label="角色" prop="roleId">
+          <el-select
+            v-model="newFormInline.roleId"
+            placeholder="请选择角色"
+            class="w-full"
+            clearable
+          >
+            <el-option
+              v-for="role in newFormInline.roleOptions"
+              :key="role.id"
+              :label="role.name"
+              :value="role.id"
+            />
+          </el-select>
+        </el-form-item>
+      </re-col>
+      <re-col :value="12" :xs="24" :sm="24">
+        <el-form-item label="姓" prop="last_name">
+          <el-input
+            v-model="newFormInline.last_name"
+            clearable
+            placeholder="请输入姓"
           />
         </el-form-item>
       </re-col>

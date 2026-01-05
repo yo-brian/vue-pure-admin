@@ -31,7 +31,8 @@ const home = 0, // 平台规定只有 home 路由的 rank 才能为 0 ，所以�
   tasks = 28,
   hazards = 29,
   config = 30,
-  dashboard = 31;
+  dashboard = 31,
+  files = 32;
 
 export {
   home,
@@ -65,5 +66,6 @@ export {
   tasks,
   hazards,
   config,
-  dashboard
+  dashboard,
+  files
 };

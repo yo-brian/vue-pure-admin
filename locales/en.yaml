@@ -67,9 +67,9 @@ menus:
   pureEmpty: Empty Page
   pureTable: Table
   pureSysManagement: System Manage
-  pureUser: User Manage
-  pureRole: Role Manage
-  pureSystemMenu: Menu Manage
+  pureUser: 用户管理
+  pureRole: 角色管理
+  pureSystemMenu: 权限管理
   pureDept: Dept Manage
   pureSysMonitor: System Monitor
   pureOnlineUser: Online User
@@ -127,7 +127,7 @@ menus:
   pureMenu1-2-2: Menu1-2-2
   pureMenu1-3: Menu1-3
   pureMenu2: Menu2
-  purePermission: Permission Manage
+  purePermission: 权限管理
   purePermissionPage: Page Permission
   purePermissionButton: Button Permission
   purePermissionButtonRouter: Route return button permission

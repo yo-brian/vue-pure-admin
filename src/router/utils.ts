@@ -85,12 +85,46 @@ function isOneOfArray(a: Array<string>, b: Array<string>) {
 function filterNoPermissionTree(data: RouteComponent[]) {
   const currentRoles =
     storageLocal().getItem<DataInfo<number>>(userKey)?.roles ?? [];
-  const newTree = cloneDeep(data).filter((v: any) =>
-    isOneOfArray(v.meta?.roles, currentRoles)
-  );
-  newTree.forEach(
-    (v: any) => v.children && (v.children = filterNoPermissionTree(v.children))
-  );
+  const currentPermissions =
+    storageLocal().getItem<DataInfo<number>>(userKey)?.permissions ?? [];
+  const allPerms = "*:*:*";
+
+  function normalizeAuths(auths: unknown): Array<string> {
+    if (!auths) return [];
+    return Array.isArray(auths) ? auths : [auths as string];
+  }
+
+  function hasAuthPermission(route: any) {
+    const auths = normalizeAuths(route?.meta?.auths);
+    if (auths.length === 0) return true;
+    if (currentPermissions.length === 1 && currentPermissions[0] === allPerms) {
+      return true;
+    }
+    return auths.some(auth => currentPermissions.includes(auth));
+  }
+
+  function hasRolePermission(route: any) {
+    return isOneOfArray(route?.meta?.roles, currentRoles);
+  }
+
+  function isStrictAuthParent(route: any) {
+    const auths = normalizeAuths(route?.meta?.auths);
+    return auths.includes("menus:original") || route?.path === "/original";
+  }
+
+  const newTree = cloneDeep(data)
+    .map((v: any) => {
+      if (v.children) {
+        v.children = filterNoPermissionTree(v.children);
+      }
+      return v;
+    })
+    .filter((v: any) => {
+      const allowed = hasRolePermission(v) && hasAuthPermission(v);
+      if (allowed) return true;
+      if (isStrictAuthParent(v)) return false;
+      return v.children && v.children.length;
+    });
   return filterChildrenTree(newTree);
 }
 

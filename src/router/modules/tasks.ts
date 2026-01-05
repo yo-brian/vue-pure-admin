@@ -6,6 +6,7 @@ export default {
   meta: {
     icon: "ri/task-line",
     title: "巡检任务",
+    auths: ["tasks"],
     rank: tasks
   },
   children: [
@@ -15,6 +16,7 @@ export default {
       component: () => import("@/views/tasks/my/index.vue"),
       meta: {
         title: "我的任务",
+        auths: ["tasks:my"],
         showParent: true
       }
     },
@@ -24,6 +26,7 @@ export default {
       component: () => import("@/views/tasks/detail/index.vue"),
       meta: {
         title: "任务详情",
+        auths: ["tasks:detail"],
         showLink: false
       }
     },
@@ -33,6 +36,7 @@ export default {
       component: () => import("@/views/tasks/all/index.vue"),
       meta: {
         title: "全部任务",
+        auths: ["tasks:all"],
         showParent: true
       }
     },
@@ -42,6 +46,7 @@ export default {
       component: () => import("@/views/tasks/create-adhoc/index.vue"),
       meta: {
         title: "新建临时任务",
+        auths: ["tasks:create_adhoc"],
         showParent: true
       }
     },
@@ -51,6 +56,7 @@ export default {
       component: () => import("@/views/tasks/edit/index.vue"),
       meta: {
         title: "编辑任务",
+        auths: ["tasks:edit"],
         showLink: false
       }
     }

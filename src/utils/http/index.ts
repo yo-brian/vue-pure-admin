@@ -144,8 +144,9 @@ class PureHttp {
         $error.isCancelRequest = Axios.isCancel($error);
 
         // 简要提示接口错误（总要求：对接口错误用 Element Plus message 做提示）
-        if (!$error.isCancelRequest) {
-          const status = $error.response?.status;
+        const hideError = Boolean($error.config?.hideError);
+        const status = $error.response?.status;
+        if (!$error.isCancelRequest && !hideError) {
           const data: any = $error.response?.data;
           const detail =
             data?.detail ||
@@ -154,9 +155,9 @@ class PureHttp {
             (typeof data === "string" ? data : "") ||
             $error.message;
           message(detail || "接口请求失败", { type: "error" });
-          // 401 时清理登录态，避免卡死在鉴权循环里
-          if (status === 401) useUserStoreHook().logOut();
         }
+        // 401 时清理登录态，避免卡死在鉴权循环里
+        if (status === 401) useUserStoreHook().logOut();
         // 所有的响应异常 区分来源为取消请求/非取消请求
         return Promise.reject($error);
       }

@@ -100,7 +100,8 @@ const transitionMain = defineComponent({
         appear: true
       },
       {
-        default: () => [this.$slots.default()]
+        default: () =>
+          h("div", { class: "main-content" }, this.$slots.default?.())
       }
     );
   }
@@ -148,7 +149,6 @@ const transitionMain = defineComponent({
                       :is="Comp"
                       :key="fullPath"
                       :frameInfo="frameInfo"
-                      class="main-content"
                     />
                   </keep-alive>
                   <component
@@ -156,7 +156,6 @@ const transitionMain = defineComponent({
                     v-else
                     :key="fullPath"
                     :frameInfo="frameInfo"
-                    class="main-content"
                   />
                 </transitionMain>
               </div>
@@ -172,7 +171,6 @@ const transitionMain = defineComponent({
                     :is="Comp"
                     :key="fullPath"
                     :frameInfo="frameInfo"
-                    class="main-content"
                   />
                 </keep-alive>
                 <component
@@ -180,7 +178,6 @@ const transitionMain = defineComponent({
                   v-else
                   :key="fullPath"
                   :frameInfo="frameInfo"
-                  class="main-content"
                 />
               </transitionMain>
             </div>

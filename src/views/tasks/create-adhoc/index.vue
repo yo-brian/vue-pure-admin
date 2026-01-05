@@ -42,6 +42,7 @@ const form = reactive<{
   template_id: number | null;
   assignee_id: number | null;
   due_date: string | null;
+  planned_date: string | null;
   is_emergency: boolean;
   custom_check_items: string[];
 }>({
@@ -54,6 +55,7 @@ const form = reactive<{
   template_id: null,
   assignee_id: null,
   due_date: null,
+  planned_date: null,
   is_emergency: false,
   custom_check_items: []
 });
@@ -82,10 +84,27 @@ const frequencyLabelMap: Record<CheckTemplate["frequency"], string> = {
   yearly: "每年"
 };
 
+const hazardLevelLabelMap: Record<
+  NonNullable<CheckTemplate["default_hazard_level"]>,
+  string
+> = {
+  minor: "一般",
+  major: "重大"
+};
+
 const selectedTemplateFrequencyLabel = computed(() => {
   const template = templates.value.find(item => item.id === form.template_id);
   if (!template) return "-";
   return frequencyLabelMap[template.frequency] ?? template.frequency;
+});
+
+const selectedTemplateHazardLevelLabel = computed(() => {
+  const template = templates.value.find(item => item.id === form.template_id);
+  if (!template?.default_hazard_level) return "-";
+  return (
+    hazardLevelLabelMap[template.default_hazard_level] ??
+    template.default_hazard_level
+  );
 });
 
 function userDisplayName(user: AppUser) {
@@ -98,6 +117,12 @@ watch(
   templateId => {
     if (!templateId) {
       previousTemplateId.value = null;
+      form.area_id = null;
+      form.task_type = "adhoc";
+      form.due_date = null;
+      form.planned_date = null;
+      form.description = "";
+      form.custom_check_items = [];
       return;
     }
     const template = templates.value.find(item => item.id === templateId);
@@ -114,15 +139,12 @@ watch(
       form.area_id = template.area;
     }
     form.title = template.name;
+    form.description = template.description ?? "";
     if (template.task_type) {
       form.task_type = template.task_type;
     }
-    if (template.default_due_days) {
-      form.due_date = dayjs()
-        .add(template.default_due_days, "day")
-        .format("YYYY-MM-DD");
-    }
-    form.is_emergency = !!template.is_emergency_default;
+    form.due_date = template.due_date ?? null;
+    form.planned_date = template.planned_date ?? template.due_date ?? null;
     previousTemplateId.value = templateId ?? null;
   }
 );
@@ -201,6 +223,9 @@ async function handleSubmit() {
       template_id: form.template_id || null,
       assignee_id: form.assignee_id!,
       due_date: dayjs(form.due_date!).format("YYYY-MM-DD"),
+      planned_date: form.planned_date
+        ? dayjs(form.planned_date).format("YYYY-MM-DD")
+        : dayjs(form.due_date!).format("YYYY-MM-DD"),
       is_emergency: form.is_emergency,
       custom_check_items: form.custom_check_items
     });
@@ -235,140 +260,187 @@ onMounted(fetchOptions);
         label-width="110px"
         status-icon
       >
-        <el-form-item label="标题" prop="title">
-          <el-input v-model="form.title" placeholder="请输入任务标题" />
-        </el-form-item>
-
-        <el-form-item label="描述">
-          <HtmlEditor v-model="form.description" height="180px" />
-        </el-form-item>
-
-        <el-form-item label="设备名称">
-          <el-input
-            v-model="form.equipment_name"
-            placeholder="请输入设备名称"
-          />
-        </el-form-item>
-
-        <el-form-item label="设备编号">
-          <el-input
-            v-model="form.equipment_code"
-            placeholder="请输入设备编号"
-          />
-        </el-form-item>
-
-        <el-form-item label="任务类型" prop="task_type">
-          <el-radio-group v-model="form.task_type">
-            <el-radio-button
-              v-for="opt in taskTypeOptions"
-              :key="opt.value"
-              :label="opt.value"
-            >
-              {{ opt.label }}
-            </el-radio-button>
-          </el-radio-group>
-        </el-form-item>
-
-        <el-form-item label="选择区域" prop="area_id">
-          <el-select v-model="form.area_id" placeholder="请选择区域" filterable>
-            <el-option
-              v-for="a in areas"
-              :key="a.id"
-              :label="a.name"
-              :value="a.id"
-            />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item label="是否紧急">
-          <el-switch v-model="form.is_emergency" />
-        </el-form-item>
-
-        <el-form-item label="选择模板">
-          <el-select
-            v-model="form.template_id"
-            placeholder="可留空"
-            clearable
-            filterable
-          >
-            <el-option
-              v-for="t in templates"
-              :key="t.id"
-              :label="t.name"
-              :value="t.id"
-            />
-          </el-select>
-          <span class="ml-2 text-gray-500 text-sm">
-            未选择模板时需要填写自定义检查项
-          </span>
-        </el-form-item>
-        <el-form-item v-if="isUsingTemplate" label="频率">
-          <el-input :model-value="selectedTemplateFrequencyLabel" disabled />
-        </el-form-item>
-
-        <el-form-item label="执行人" prop="assignee_id">
-          <el-select
-            v-if="isAdmin"
-            v-model="form.assignee_id"
-            placeholder="请选择执行人"
-            filterable
-          >
-            <el-option
-              v-for="u in users"
-              :key="u.id"
-              :label="userDisplayName(u)"
-              :value="u.id"
-            />
-          </el-select>
-          <el-input v-else :model-value="assigneeDisplayName" disabled />
-        </el-form-item>
-
-        <el-form-item label="截止日期" prop="due_date">
-          <el-date-picker
-            v-model="form.due_date"
-            type="date"
-            placeholder="请选择日期"
-            format="YYYY-MM-DD"
-            value-format="YYYY-MM-DD"
-          />
-        </el-form-item>
-
-        <el-form-item label="自定义检查项" prop="custom_check_items">
-          <div class="w-full">
-            <div class="flex items-center gap-2">
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="标题" prop="title">
+              <el-input v-model="form.title" placeholder="请输入任务标题" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="设备名称">
               <el-input
-                v-model="newCheckItem"
-                placeholder="输入检查项名称，回车或点击添加"
-                @keyup.enter="addCustomCheckItem"
+                v-model="form.equipment_name"
+                placeholder="请输入设备名称"
               />
-              <el-button type="primary" @click="addCustomCheckItem">
-                添加
-              </el-button>
-            </div>
-            <div class="mt-2 flex flex-wrap gap-2">
-              <el-tag
-                v-for="item in form.custom_check_items"
-                :key="item"
-                closable
-                @close="removeCustomCheckItem(item)"
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="设备编号">
+              <el-input
+                v-model="form.equipment_code"
+                placeholder="请输入设备编号"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="任务类型" prop="task_type">
+              <el-radio-group v-model="form.task_type">
+                <el-radio-button
+                  v-for="opt in taskTypeOptions"
+                  :key="opt.value"
+                  :label="opt.value"
+                >
+                  {{ opt.label }}
+                </el-radio-button>
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="区域" prop="area_id">
+              <el-select
+                v-model="form.area_id"
+                placeholder="请选择区域"
+                filterable
               >
-                {{ item }}
-              </el-tag>
-              <span
-                v-if="form.custom_check_items.length === 0"
-                class="text-gray-500 text-sm"
+                <el-option
+                  v-for="a in areas"
+                  :key="a.id"
+                  :label="a.name"
+                  :value="a.id"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="是否紧急">
+              <el-switch v-model="form.is_emergency" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="执行人" prop="assignee_id">
+              <el-select
+                v-if="isAdmin"
+                v-model="form.assignee_id"
+                placeholder="请选择执行人"
+                filterable
               >
-                暂无自定义检查项
+                <el-option
+                  v-for="u in users"
+                  :key="u.id"
+                  :label="userDisplayName(u)"
+                  :value="u.id"
+                />
+              </el-select>
+              <el-input v-else :model-value="assigneeDisplayName" disabled />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="截止日期" prop="due_date">
+              <el-date-picker
+                v-model="form.due_date"
+                type="date"
+                placeholder="请选择日期"
+                format="YYYY-MM-DD"
+                value-format="YYYY-MM-DD"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="计划日期">
+              <el-date-picker
+                v-model="form.planned_date"
+                type="date"
+                placeholder="可留空"
+                format="YYYY-MM-DD"
+                value-format="YYYY-MM-DD"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="可选模板">
+              <el-select
+                v-model="form.template_id"
+                placeholder="可留空"
+                clearable
+                filterable
+              >
+                <el-option
+                  v-for="t in templates"
+                  :key="t.id"
+                  :label="t.name"
+                  :value="t.id"
+                />
+              </el-select>
+              <span class="ml-2 text-gray-500 text-sm">
+                未选择模板时需要填写自定义检查项
               </span>
-            </div>
-          </div>
-        </el-form-item>
-
-        <el-form-item>
-          <el-button type="primary" :loading="submitting" @click="handleSubmit">
-            创建临时任务
-          </el-button>
-        </el-form-item>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item v-if="isUsingTemplate" label="频率">
+              <el-input
+                :model-value="selectedTemplateFrequencyLabel"
+                disabled
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item v-if="isUsingTemplate" label="默认风险等级">
+              <el-input
+                :model-value="selectedTemplateHazardLevelLabel"
+                disabled
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="自定义检查项" prop="custom_check_items">
+              <div class="w-full">
+                <div class="flex items-center gap-2">
+                  <el-input
+                    v-model="newCheckItem"
+                    placeholder="输入检查项名称，回车或点击添加"
+                    @keyup.enter="addCustomCheckItem"
+                  />
+                  <el-button type="primary" @click="addCustomCheckItem">
+                    添加
+                  </el-button>
+                </div>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  <el-tag
+                    v-for="item in form.custom_check_items"
+                    :key="item"
+                    closable
+                    @close="removeCustomCheckItem(item)"
+                  >
+                    {{ item }}
+                  </el-tag>
+                  <span
+                    v-if="form.custom_check_items.length === 0"
+                    class="text-gray-500 text-sm"
+                  >
+                    暂无自定义检查项
+                  </span>
+                </div>
+              </div>
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="描述">
+              <HtmlEditor v-model="form.description" height="180px" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item>
+              <el-button
+                type="primary"
+                :loading="submitting"
+                @click="handleSubmit"
+              >
+                创建临时任务
+              </el-button>
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
     </el-card>
   </div>

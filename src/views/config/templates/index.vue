@@ -1,16 +1,26 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import dayjs from "dayjs";
 import type { FormInstance, FormRules } from "element-plus";
+import { ElMessageBox } from "element-plus";
 import { message } from "@/utils/message";
 import {
   createTemplate,
   deleteTemplate,
   getAreas,
   getTemplates,
+  getTemplateScheduleConfig,
+  getTemplateScheduleLogs,
+  runTemplateScheduleNow,
+  type TemplateScheduleRunParams,
   type Area,
   type CheckTemplate,
-  updateTemplate
+  type TemplateScheduleConfig,
+  type TemplateScheduleRunLog,
+  updateTemplate,
+  updateTemplateScheduleConfig
 } from "@/api/config";
+import { getUsers, type AppUser } from "@/api/user";
 import HtmlEditor from "@/components/HtmlEditor.vue";
 
 const labels = {
@@ -18,18 +28,18 @@ const labels = {
   refresh: "刷新",
   create: "新增模板",
   name: "模板名称",
-  description: "描述",
+  area: "区域",
+  type: "类型",
+  frequency: "频率",
+  plannedDate: "计划日期",
+  dueDate: "截止日期",
+  status: "状态",
+  defaultLevel: "默认风险等级",
   customItems: "自定义检查项",
   addItem: "添加",
   customItemPlaceholder: "输入检查项名称，回车或点击添加",
   customItemEmpty: "暂无自定义检查项",
-  frequency: "频率",
-  area: "适用区域",
-  type: "适用类型",
-  defaultDue: "默认截止周期",
-  defaultEmergency: "默认紧急",
-  defaultLevel: "默认风险等级",
-  attachment: "附件要求",
+  description: "描述",
   action: "操作",
   edit: "编辑",
   remove: "删除",
@@ -39,32 +49,128 @@ const labels = {
   selectArea: "请选择区域",
   selectType: "请选择类型",
   selectFrequency: "请选择频率",
+  selectStatus: "请选择状态",
   selectLevel: "请选择等级",
   optional: "可选",
   save: "保存",
   cancel: "取消",
-  day: "天",
-  sheet: "张",
-  required: "必填",
-  notRequired: "不需要",
-  yes: "是",
-  no: "否",
   nameRequired: "请输入模板名称",
   frequencyRequired: "请选择频率",
-  attachmentRequired: "请输入附件数量",
+  statusRequired: "请选择状态",
   updated: "更新成功",
   created: "新增成功",
   deleted: "删除成功",
   planned: "计划任务",
   adhoc: "临时任务",
   minor: "一般",
-  major: "重大"
+  major: "重大",
+  active: "启用",
+  inactive: "停用",
+  scheduleTitle: "定时任务",
+  scheduleEnabled: "启用",
+  scheduleTime: "执行时间",
+  scheduleSave: "保存设置",
+  scheduleRunNow: "立即执行",
+  scheduleLogs: "最近执行日志",
+  scheduleLimit: "日志条数",
+  scheduleStatus: "状态",
+  scheduleSource: "来源",
+  scheduleCreatedCount: "创建数量",
+  scheduleMessage: "信息",
+  scheduleTriggeredBy: "触发人",
+  scheduleStartedAt: "开始时间",
+  scheduleFinishedAt: "结束时间",
+  scheduleViewAll: "查看全部日志",
+  scheduleAllTitle: "全部执行日志",
+  scheduleRunRange: "日期区间",
+  scheduleRunAssignees: "执行人",
+  scheduleRunHint: "仅对勾选模板生效",
+  scheduleConfirmTitle: "确认执行",
+  scheduleConfirmOk: "立即执行",
+  scheduleConfirmCancel: "取消",
+  scheduleNeedTemplate: "请先勾选模板",
+  scheduleNeedRange: "请先选择日期区间",
+  scheduleConfirmText: "将对选中模板在指定日期区间内生成任务，确认继续吗？",
+  scheduleErrorTitle: "执行失败",
+  scheduleErrorFallback: "执行失败，请稍后重试",
+  scheduleRefresh: "刷新",
+  weeklyDay: "每周哪天",
+  monthlyDay: "每月哪天",
+  yearlyMonth: "每年月份",
+  yearlyDay: "每年哪天",
+  selectWeeklyDay: "请选择星期",
+  selectMonthlyDay: "请输入日期",
+  selectYearlyMonth: "请选择月份",
+  selectYearlyDay: "请输入日期"
 };
 
 const loading = ref(false);
 const submitting = ref(false);
 const templates = ref<CheckTemplate[]>([]);
 const areas = ref<Area[]>([]);
+const assignees = ref<AppUser[]>([]);
+const selectedTemplateRows = ref<CheckTemplate[]>([]);
+const selectedAssignees = ref<number[]>([]);
+const today = dayjs().format("YYYY-MM-DD");
+const runDateRange = ref<[string, string] | null>([today, today]);
+
+const runDateRangeShortcuts = [
+  {
+    text: "今日",
+    value: () => {
+      const value = dayjs().format("YYYY-MM-DD");
+      return [value, value];
+    }
+  },
+  {
+    text: "本月",
+    value: () => [
+      dayjs().startOf("month").format("YYYY-MM-DD"),
+      dayjs().endOf("month").format("YYYY-MM-DD")
+    ]
+  },
+  {
+    text: "本季",
+    value: () => {
+      const now = dayjs();
+      const quarter = Math.floor((now.month() + 3) / 3);
+      const start = dayjs()
+        .month((quarter - 1) * 3)
+        .startOf("month");
+      const end = start.add(2, "month").endOf("month");
+      return [start.format("YYYY-MM-DD"), end.format("YYYY-MM-DD")];
+    }
+  },
+  {
+    text: "本年",
+    value: () => [
+      dayjs().startOf("year").format("YYYY-MM-DD"),
+      dayjs().endOf("year").format("YYYY-MM-DD")
+    ]
+  }
+];
+
+const scheduleConfig = reactive<TemplateScheduleConfig>({
+  id: 0,
+  enabled: false,
+  run_time: "00:05:00",
+  updated_at: ""
+});
+const scheduleLoading = ref(false);
+const scheduleSaving = ref(false);
+const scheduleRunning = ref(false);
+const scheduleLogsLoading = ref(false);
+const scheduleLogs = ref<TemplateScheduleRunLog[]>([]);
+const scheduleLogLimit = ref(3);
+const scheduleAllVisible = ref(false);
+const scheduleAllLoading = ref(false);
+const scheduleAllLogs = ref<TemplateScheduleRunLog[]>([]);
+const scheduleAllPage = ref(1);
+const scheduleAllPageSize = ref(10);
+const scheduleAllPagedLogs = computed(() => {
+  const start = (scheduleAllPage.value - 1) * scheduleAllPageSize.value;
+  return scheduleAllLogs.value.slice(start, start + scheduleAllPageSize.value);
+});
 
 const dialogVisible = ref(false);
 const isEdit = ref(false);
@@ -77,11 +183,14 @@ const form = reactive<{
   frequency: CheckTemplate["frequency"] | "";
   area_id: number | null;
   task_type: CheckTemplate["task_type"] | "";
-  default_due_days: number | null;
-  is_emergency_default: boolean;
+  due_date: string | null;
+  planned_date: string | null;
+  status: CheckTemplate["status"] | "";
   default_hazard_level: CheckTemplate["default_hazard_level"] | "";
-  attachment_required: boolean;
-  attachment_count: number | null;
+  weekly_day: number | null;
+  monthly_day: number | null;
+  yearly_month: number | null;
+  yearly_day: number | null;
   custom_items: string[];
 }>({
   name: "",
@@ -89,11 +198,14 @@ const form = reactive<{
   frequency: "",
   area_id: null,
   task_type: "",
-  default_due_days: null,
-  is_emergency_default: false,
+  due_date: null,
+  planned_date: null,
+  status: "active",
   default_hazard_level: "",
-  attachment_required: false,
-  attachment_count: null,
+  weekly_day: null,
+  monthly_day: null,
+  yearly_month: null,
+  yearly_day: null,
   custom_items: []
 });
 
@@ -107,11 +219,26 @@ const frequencyOptions: Array<{
   label: string;
   value: CheckTemplate["frequency"];
 }> = [
-  { label: labels.day, value: "daily" },
+  { label: "每日", value: "daily" },
   { label: "每周", value: "weekly" },
   { label: "每月", value: "monthly" },
   { label: "每年", value: "yearly" }
 ];
+
+const weekdayOptions = [
+  { label: "周一", value: 1 },
+  { label: "周二", value: 2 },
+  { label: "周三", value: 3 },
+  { label: "周四", value: 4 },
+  { label: "周五", value: 5 },
+  { label: "周六", value: 6 },
+  { label: "周日", value: 7 }
+];
+
+const monthOptions = Array.from({ length: 12 }, (_, index) => ({
+  label: `${index + 1}月`,
+  value: index + 1
+}));
 
 const taskTypeOptions: Array<{
   label: string;
@@ -129,24 +256,35 @@ const hazardLevelOptions: Array<{
   { label: labels.major, value: "major" }
 ];
 
+const statusOptions: Array<{
+  label: string;
+  value: NonNullable<CheckTemplate["status"]>;
+}> = [
+  { label: labels.active, value: "active" },
+  { label: labels.inactive, value: "inactive" }
+];
+
 const rules: FormRules = {
   name: [{ required: true, message: labels.nameRequired, trigger: "blur" }],
   frequency: [
     { required: true, message: labels.frequencyRequired, trigger: "change" }
   ],
-  attachment_count: [
-    {
-      validator: (_rule, _value, callback) => {
-        if (form.attachment_required && !form.attachment_count) {
-          callback(new Error(labels.attachmentRequired));
-          return;
-        }
-        callback();
-      },
-      trigger: "change"
-    }
+  status: [
+    { required: true, message: labels.statusRequired, trigger: "change" }
   ]
 };
+
+watch(
+  () => form.frequency,
+  value => {
+    if (value !== "weekly") form.weekly_day = null;
+    if (value !== "monthly") form.monthly_day = null;
+    if (value !== "yearly") {
+      form.yearly_month = null;
+      form.yearly_day = null;
+    }
+  }
+);
 
 function resetForm() {
   form.name = "";
@@ -154,11 +292,14 @@ function resetForm() {
   form.frequency = "";
   form.area_id = null;
   form.task_type = "";
-  form.default_due_days = null;
-  form.is_emergency_default = false;
+  form.due_date = null;
+  form.planned_date = null;
+  form.status = "active";
   form.default_hazard_level = "";
-  form.attachment_required = false;
-  form.attachment_count = null;
+  form.weekly_day = null;
+  form.monthly_day = null;
+  form.yearly_month = null;
+  form.yearly_day = null;
   form.custom_items = [];
   formRef.value?.clearValidate();
 }
@@ -178,11 +319,14 @@ function openEdit(row: CheckTemplate) {
   form.frequency = row.frequency;
   form.area_id = row.area ?? null;
   form.task_type = row.task_type ?? "";
-  form.default_due_days = row.default_due_days ?? null;
-  form.is_emergency_default = row.is_emergency_default ?? false;
+  form.due_date = row.due_date ?? null;
+  form.planned_date = row.planned_date ?? null;
+  form.status = row.status ?? "active";
   form.default_hazard_level = row.default_hazard_level ?? "";
-  form.attachment_required = row.attachment_required ?? false;
-  form.attachment_count = row.attachment_count ?? null;
+  form.weekly_day = row.weekly_day ?? null;
+  form.monthly_day = row.monthly_day ?? null;
+  form.yearly_month = row.yearly_month ?? null;
+  form.yearly_day = row.yearly_day ?? null;
   form.custom_items = row.custom_items ? [...row.custom_items] : [];
   dialogVisible.value = true;
 }
@@ -196,9 +340,150 @@ async function fetchTemplates() {
   }
 }
 
+async function fetchScheduleConfig() {
+  scheduleLoading.value = true;
+  try {
+    const data = await getTemplateScheduleConfig();
+    scheduleConfig.id = data.id;
+    scheduleConfig.enabled = data.enabled;
+    scheduleConfig.run_time = data.run_time;
+    scheduleConfig.updated_at = data.updated_at;
+  } finally {
+    scheduleLoading.value = false;
+  }
+}
+
+async function saveScheduleConfig() {
+  scheduleSaving.value = true;
+  try {
+    const data = await updateTemplateScheduleConfig({
+      enabled: scheduleConfig.enabled,
+      run_time: scheduleConfig.run_time
+    });
+    scheduleConfig.id = data.id;
+    scheduleConfig.enabled = data.enabled;
+    scheduleConfig.run_time = data.run_time;
+    scheduleConfig.updated_at = data.updated_at;
+    message("保存成功", { type: "success" });
+  } finally {
+    scheduleSaving.value = false;
+  }
+}
+
+async function fetchScheduleLogs() {
+  scheduleLogsLoading.value = true;
+  try {
+    scheduleLogs.value = await getTemplateScheduleLogs(scheduleLogLimit.value);
+  } finally {
+    scheduleLogsLoading.value = false;
+  }
+}
+
+async function fetchAllScheduleLogs() {
+  scheduleAllLoading.value = true;
+  try {
+    scheduleAllLogs.value = await getTemplateScheduleLogs(50);
+  } finally {
+    scheduleAllLoading.value = false;
+  }
+}
+
+async function handleViewAllLogs() {
+  scheduleAllVisible.value = true;
+  scheduleAllPage.value = 1;
+  await fetchAllScheduleLogs();
+}
+
+function handleScheduleAllPageChange(page: number) {
+  scheduleAllPage.value = page;
+}
+
+function handleScheduleAllSizeChange(size: number) {
+  scheduleAllPageSize.value = size;
+  scheduleAllPage.value = 1;
+}
+
+async function handleRunScheduleNow() {
+  if (selectedTemplateRows.value.length === 0) {
+    message(labels.scheduleNeedTemplate, { type: "warning" });
+    return;
+  }
+  if (!runDateRange.value || runDateRange.value.length !== 2) {
+    message(labels.scheduleNeedRange, { type: "warning" });
+    return;
+  }
+
+  const [startDate, endDate] = runDateRange.value;
+  const templateNames = selectedTemplateRows.value
+    .map(item => item.name)
+    .join(", ");
+  const assigneeCount = selectedAssignees.value.length;
+
+  const confirmed = await ElMessageBox.confirm(
+    `${labels.scheduleConfirmText}\n模板: ${templateNames}\n区间: ${startDate} ~ ${endDate}\n手动指定执行人: ${assigneeCount}`,
+    labels.scheduleConfirmTitle,
+    {
+      type: "warning",
+      confirmButtonText: labels.scheduleConfirmOk,
+      cancelButtonText: labels.scheduleConfirmCancel,
+      closeOnClickModal: false
+    }
+  )
+    .then(() => true)
+    .catch(() => false);
+
+  if (!confirmed) return;
+
+  scheduleRunning.value = true;
+  try {
+    const payload: TemplateScheduleRunParams = {
+      template_ids: selectedTemplateRows.value.map(item => item.id),
+      assignee_ids: selectedAssignees.value,
+      start_date: startDate,
+      end_date: endDate
+    };
+    await runTemplateScheduleNow(payload, { hideError: true });
+    message("已触发执行", { type: "success" });
+    await fetchScheduleLogs();
+  } catch (error) {
+    const detail =
+      error?.response?.data?.detail ||
+      error?.message ||
+      labels.scheduleErrorFallback;
+    await ElMessageBox.alert(detail, labels.scheduleErrorTitle, {
+      type: "error",
+      confirmButtonText: labels.scheduleConfirmOk
+    });
+  } finally {
+    scheduleRunning.value = false;
+  }
+}
+
+function logStatusType(value: TemplateScheduleRunLog["status"]) {
+  return value === "success" ? "success" : "danger";
+}
+
+function formatLogTime(value?: string | null) {
+  if (!value) return "-";
+  return dayjs(value).format("YYYY-MM-DD HH:mm:ss");
+}
+
 async function fetchAreas() {
   const list = await getAreas();
   areas.value = list;
+}
+
+async function fetchUsers() {
+  assignees.value = await getUsers();
+}
+
+function handleTemplateSelection(rows: CheckTemplate[]) {
+  selectedTemplateRows.value = rows;
+}
+
+function formatAssigneeLabel(user: AppUser) {
+  const name = [user.last_name, user.first_name].filter(Boolean).join("");
+  return name ? `${user.username} (${name})` : user.username;
 }
 
 async function handleSubmit() {
@@ -213,13 +498,14 @@ async function handleSubmit() {
         frequency: form.frequency as CheckTemplate["frequency"],
         area: form.area_id,
         task_type: form.task_type || null,
-        default_due_days: form.default_due_days,
-        is_emergency_default: form.is_emergency_default,
+        planned_date: form.planned_date,
+        due_date: form.due_date,
+        status: (form.status as CheckTemplate["status"]) || "active",
         default_hazard_level: form.default_hazard_level || null,
-        attachment_required: form.attachment_required,
-        attachment_count: form.attachment_required
-          ? form.attachment_count
-          : null,
+        weekly_day: form.weekly_day,
+        monthly_day: form.monthly_day,
+        yearly_month: form.yearly_month,
+        yearly_day: form.yearly_day,
         custom_items: form.custom_items
       });
       message(labels.updated, { type: "success" });
@@ -230,13 +516,14 @@ async function handleSubmit() {
         frequency: form.frequency as CheckTemplate["frequency"],
         area: form.area_id,
         task_type: form.task_type || null,
-        default_due_days: form.default_due_days,
-        is_emergency_default: form.is_emergency_default,
+        planned_date: form.planned_date,
+        due_date: form.due_date,
+        status: (form.status as CheckTemplate["status"]) || "active",
         default_hazard_level: form.default_hazard_level || null,
-        attachment_required: form.attachment_required,
-        attachment_count: form.attachment_required
-          ? form.attachment_count
-          : null,
+        weekly_day: form.weekly_day,
+        monthly_day: form.monthly_day,
+        yearly_month: form.yearly_month,
+        yearly_day: form.yearly_day,
         custom_items: form.custom_items
       });
       message(labels.created, { type: "success" });
@@ -258,7 +545,7 @@ function addCustomItem() {
   const value = newCustomItem.value.trim();
   if (!value) return;
   if (form.custom_items.includes(value)) {
-    message("?????????????????????", { type: "warning" });
+    message("该检查项已存在", { type: "warning" });
     return;
   }
   form.custom_items.push(value);
@@ -271,12 +558,218 @@ function removeCustomItem(item: string) {
 
 onMounted(async () => {
   await fetchAreas();
+  await fetchUsers();
   await fetchTemplates();
+  await fetchScheduleConfig();
+  await fetchScheduleLogs();
 });
 </script>
 
 <template>
   <div class="p-4">
+    <el-card shadow="never" class="mb-4">
+      <template #header>
+        <div class="flex items-center justify-between">
+          <span class="font-medium">{{ labels.scheduleTitle }}</span>
+          <el-button :loading="scheduleLoading" @click="fetchScheduleConfig">
+            {{ labels.scheduleRefresh }}
+          </el-button>
+        </div>
+      </template>
+      <el-form :model="scheduleConfig" inline>
+        <el-form-item :label="labels.scheduleEnabled">
+          <el-switch v-model="scheduleConfig.enabled" />
+        </el-form-item>
+        <el-form-item :label="labels.scheduleTime">
+          <el-time-picker
+            v-model="scheduleConfig.run_time"
+            value-format="HH:mm:ss"
+            format="HH:mm"
+            :clearable="false"
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-button
+            type="primary"
+            :loading="scheduleSaving"
+            @click="saveScheduleConfig"
+          >
+            {{ labels.scheduleSave }}
+          </el-button>
+          <el-button
+            type="success"
+            :loading="scheduleRunning"
+            @click="handleRunScheduleNow"
+          >
+            {{ labels.scheduleRunNow }}
+          </el-button>
+          <span class="text-sm text-gray-500 ml-2">{{
+            labels.scheduleRunHint
+          }}</span>
+        </el-form-item>
+        <el-form-item :label="labels.scheduleRunRange">
+          <el-date-picker
+            v-model="runDateRange"
+            type="daterange"
+            value-format="YYYY-MM-DD"
+            format="YYYY-MM-DD"
+            :clearable="false"
+            range-separator="~"
+            :shortcuts="runDateRangeShortcuts"
+          />
+        </el-form-item>
+        <el-form-item :label="labels.scheduleRunAssignees">
+          <el-select
+            v-model="selectedAssignees"
+            multiple
+            filterable
+            clearable
+            collapse-tags
+            collapse-tags-tooltip
+            :placeholder="labels.optional"
+          >
+            <el-option
+              v-for="user in assignees"
+              :key="user.id"
+              :label="formatAssigneeLabel(user)"
+              :value="user.id"
+            />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <div class="mt-4">
+        <div class="flex items-center justify-between mb-2">
+          <span class="font-medium">{{ labels.scheduleLogs }}</span>
+          <div class="flex items-center gap-2">
+            <el-button
+              size="small"
+              :loading="scheduleLogsLoading"
+              @click="fetchScheduleLogs"
+            >
+              {{ labels.scheduleRefresh }}
+            </el-button>
+            <el-button size="small" @click="handleViewAllLogs">
+              {{ labels.scheduleViewAll }}
+            </el-button>
+          </div>
+        </div>
+        <el-table
+          :data="scheduleLogs"
+          border
+          size="small"
+          :loading="scheduleLogsLoading"
+        >
+          <el-table-column :label="labels.scheduleStatus" width="90">
+            <template #default="{ row }">
+              <el-tag :type="logStatusType(row.status)">
+                {{ row.status === "success" ? "成功" : "失败" }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column :label="labels.scheduleSource" width="100">
+            <template #default="{ row }">
+              {{ row.run_source === "beat" ? "定时" : "手动" }}
+            </template>
+          </el-table-column>
+          <el-table-column :label="labels.scheduleCreatedCount" width="100">
+            <template #default="{ row }">
+              {{ row.created_count }}
+            </template>
+          </el-table-column>
+          <el-table-column :label="labels.scheduleTriggeredBy" width="120">
+            <template #default="{ row }">
+              {{ row.triggered_by_name ?? "-" }}
+            </template>
+          </el-table-column>
+          <el-table-column :label="labels.scheduleStartedAt" width="160">
+            <template #default="{ row }">
+              {{ formatLogTime(row.started_at) }}
+            </template>
+          </el-table-column>
+          <el-table-column :label="labels.scheduleFinishedAt" width="160">
+            <template #default="{ row }">
+              {{ formatLogTime(row.finished_at) }}
+            </template>
+          </el-table-column>
+          <el-table-column
+            :label="labels.scheduleMessage"
+            min-width="200"
+            show-overflow-tooltip
+          >
+            <template #default="{ row }">
+              {{ row.message || "-" }}
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </el-card>
+
+    <el-dialog
+      v-model="scheduleAllVisible"
+      :title="labels.scheduleAllTitle"
+      width="960px"
+    >
+      <el-table
+        :data="scheduleAllPagedLogs"
+        border
+        size="small"
+        :loading="scheduleAllLoading"
+      >
+        <el-table-column :label="labels.scheduleStatus" width="90">
+          <template #default="{ row }">
+            <el-tag :type="logStatusType(row.status)">
+              {{ row.status === "success" ? "成功" : "失败" }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column :label="labels.scheduleSource" width="100">
+          <template #default="{ row }">
+            {{ row.run_source === "beat" ? "定时" : "手动" }}
+          </template>
+        </el-table-column>
+        <el-table-column :label="labels.scheduleCreatedCount" width="100">
+          <template #default="{ row }">
+            {{ row.created_count }}
+          </template>
+        </el-table-column>
+        <el-table-column :label="labels.scheduleTriggeredBy" width="120">
+          <template #default="{ row }">
+            {{ row.triggered_by_name ?? "-" }}
+          </template>
+        </el-table-column>
+        <el-table-column :label="labels.scheduleStartedAt" width="160">
+          <template #default="{ row }">
+            {{ formatLogTime(row.started_at) }}
+          </template>
+        </el-table-column>
+        <el-table-column :label="labels.scheduleFinishedAt" width="160">
+          <template #default="{ row }">
+            {{ formatLogTime(row.finished_at) }}
+          </template>
+        </el-table-column>
+        <el-table-column
+          :label="labels.scheduleMessage"
+          min-width="240"
+          show-overflow-tooltip
+        >
+          <template #default="{ row }">
+            {{ row.message || "-" }}
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="mt-4 flex justify-end">
+        <el-pagination
+          v-model:currentPage="scheduleAllPage"
+          :page-size="scheduleAllPageSize"
+          :total="scheduleAllLogs.length"
+          :page-sizes="[10, 20, 50]"
+          :background="true"
+          layout="total, sizes, prev, pager, next"
+          @size-change="handleScheduleAllSizeChange"
+          @current-change="handleScheduleAllPageChange"
+        />
+      </div>
+    </el-dialog>
     <el-card shadow="never">
       <template #header>
         <div class="flex items-center justify-between">
@@ -292,21 +785,15 @@ onMounted(async () => {
         </div>
       </template>
 
-      <el-table :data="templates" border :loading="loading" style="width: 100%">
-        <el-table-column prop="name" :label="labels.name" min-width="200" />
-        <el-table-column
-          prop="description"
-          :label="labels.description"
-          min-width="240"
-        />
-        <el-table-column :label="labels.frequency" width="120">
-          <template #default="{ row }">
-            {{
-              frequencyOptions.find(opt => opt.value === row.frequency)
-                ?.label ?? row.frequency
-            }}
-          </template>
-        </el-table-column>
+      <el-table
+        :data="templates"
+        border
+        :loading="loading"
+        style="width: 100%"
+        @selection-change="handleTemplateSelection"
+      >
+        <el-table-column type="selection" width="48" />
+        <el-table-column prop="name" :label="labels.name" min-width="180" />
         <el-table-column :label="labels.area" min-width="140">
           <template #default="{ row }">
             {{ areaNameMap[row.area] ?? (row.area ? `#${row.area}` : "-") }}
@@ -321,18 +808,31 @@ onMounted(async () => {
             }}
           </template>
         </el-table-column>
-        <el-table-column :label="labels.defaultDue" width="140">
+        <el-table-column :label="labels.frequency" width="120">
           <template #default="{ row }">
             {{
-              row.default_due_days
-                ? `${row.default_due_days}${labels.day}`
-                : "-"
+              frequencyOptions.find(opt => opt.value === row.frequency)
+                ?.label ?? row.frequency
             }}
           </template>
         </el-table-column>
-        <el-table-column :label="labels.defaultEmergency" width="100">
+        <el-table-column :label="labels.plannedDate" width="140">
           <template #default="{ row }">
-            {{ row.is_emergency_default ? labels.yes : labels.no }}
+            {{ row.planned_date || "-" }}
+          </template>
+        </el-table-column>
+        <el-table-column :label="labels.dueDate" width="140">
+          <template #default="{ row }">
+            {{ row.due_date || "-" }}
+          </template>
+        </el-table-column>
+        <el-table-column :label="labels.status" width="100">
+          <template #default="{ row }">
+            {{
+              statusOptions.find(opt => opt.value === row.status)?.label ??
+              row.status ??
+              "-"
+            }}
           </template>
         </el-table-column>
         <el-table-column :label="labels.defaultLevel" width="140">
@@ -346,13 +846,22 @@ onMounted(async () => {
             }}
           </template>
         </el-table-column>
-        <el-table-column :label="labels.attachment" min-width="140">
+        <el-table-column
+          :label="labels.customItems"
+          min-width="200"
+          show-overflow-tooltip
+        >
           <template #default="{ row }">
-            {{
-              row.attachment_required
-                ? `${labels.required} ${row.attachment_count ?? 0} ${labels.sheet}`
-                : labels.notRequired
-            }}
+            {{ row.custom_items?.length ? row.custom_items.join("、") : "-" }}
+          </template>
+        </el-table-column>
+        <el-table-column
+          :label="labels.description"
+          min-width="240"
+          show-overflow-tooltip
+        >
+          <template #default="{ row }">
+            {{ row.description || "-" }}
           </template>
         </el-table-column>
         <el-table-column :label="labels.action" width="160" fixed="right">
@@ -425,14 +934,93 @@ onMounted(async () => {
             />
           </el-select>
         </el-form-item>
-        <el-form-item :label="labels.defaultDue">
-          <div class="flex items-center gap-2">
-            <el-input-number v-model="form.default_due_days" :min="1" />
-            <span class="text-gray-500 text-sm">{{ labels.day }}</span>
-          </div>
+        <el-form-item
+          v-if="form.frequency === 'weekly'"
+          :label="labels.weeklyDay"
+        >
+          <el-select
+            v-model="form.weekly_day"
+            :placeholder="labels.selectWeeklyDay"
+            clearable
+          >
+            <el-option
+              v-for="opt in weekdayOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
         </el-form-item>
-        <el-form-item :label="labels.defaultEmergency">
-          <el-switch v-model="form.is_emergency_default" />
+        <el-form-item
+          v-if="form.frequency === 'monthly'"
+          :label="labels.monthlyDay"
+        >
+          <el-input-number
+            v-model="form.monthly_day"
+            :min="1"
+            :max="31"
+            controls-position="right"
+            :placeholder="labels.selectMonthlyDay"
+          />
+        </el-form-item>
+        <el-form-item
+          v-if="form.frequency === 'yearly'"
+          :label="labels.yearlyMonth"
+        >
+          <el-select
+            v-model="form.yearly_month"
+            :placeholder="labels.selectYearlyMonth"
+            clearable
+          >
+            <el-option
+              v-for="opt in monthOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item
+          v-if="form.frequency === 'yearly'"
+          :label="labels.yearlyDay"
+        >
+          <el-input-number
+            v-model="form.yearly_day"
+            :min="1"
+            :max="31"
+            controls-position="right"
+            :placeholder="labels.selectYearlyDay"
+          />
+        </el-form-item>
+        <el-form-item :label="labels.plannedDate">
+          <el-date-picker
+            v-model="form.planned_date"
+            type="date"
+            value-format="YYYY-MM-DD"
+            :placeholder="labels.optional"
+          />
+        </el-form-item>
+        <el-form-item :label="labels.dueDate">
+          <el-date-picker
+            v-model="form.due_date"
+            type="date"
+            value-format="YYYY-MM-DD"
+            :placeholder="labels.optional"
+          />
+        </el-form-item>
+        <el-form-item :label="labels.status" prop="status">
+          <el-select
+            v-model="form.status"
+            :placeholder="labels.selectStatus"
+            clearable
+          >
+            <el-option
+              v-for="opt in statusOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item :label="labels.defaultLevel">
           <el-select
@@ -447,17 +1035,6 @@ onMounted(async () => {
               :value="opt.value"
             />
           </el-select>
-        </el-form-item>
-        <el-form-item :label="labels.attachment" prop="attachment_count">
-          <div class="flex items-center gap-2">
-            <el-switch v-model="form.attachment_required" />
-            <el-input-number
-              v-model="form.attachment_count"
-              :min="1"
-              :disabled="!form.attachment_required"
-            />
-            <span class="text-gray-500 text-sm">{{ labels.sheet }}</span>
-          </div>
         </el-form-item>
         <el-form-item :label="labels.customItems">
           <div class="w-full">

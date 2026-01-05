@@ -83,3 +83,68 @@ export const getRoleMenu = (data?: object) => {
 export const getRoleMenuIds = (data?: object) => {
   return http.request<Result>("post", "/role-menu-ids", { data });
 };
+
+/** ????-????-?? */
+export const createUser = (data?: object) => {
+  return http.request<Result>("post", "/user/create", { data });
+};
+
+/** ????-????-?? */
+export const updateUser = (data?: object) => {
+  return http.request<Result>("post", "/user/update", { data });
+};
+
+/** ????-????-?? */
+export const deleteUser = (data?: object) => {
+  return http.request<Result>("post", "/user/delete", { data });
+};
+
+/** ????-????-???? */
+export const batchDeleteUser = (data?: object) => {
+  return http.request<Result>("post", "/user/batch-delete", { data });
+};
+
+/** ????-????-???? */
+export const resetUserPassword = (data?: object) => {
+  return http.request<Result>("post", "/user/reset-password", { data });
+};
+
+/** ????-????-???? */
+export const assignUserRole = (data?: object) => {
+  return http.request<Result>("post", "/user/assign-role", { data });
+};
+
+/** ????-????-?? */
+export const createRole = (data?: object) => {
+  return http.request<Result>("post", "/role/create", { data });
+};
+
+/** ????-????-?? */
+export const updateRole = (data?: object) => {
+  return http.request<Result>("post", "/role/update", { data });
+};
+
+/** ????-????-?? */
+export const deleteRole = (data?: object) => {
+  return http.request<Result>("post", "/role/delete", { data });
+};
+
+/** ????-????-?? */
+export const createMenu = (data?: object) => {
+  return http.request<Result>("post", "/menu/create", { data });
+};
+
+/** ????-????-?? */
+export const updateMenu = (data?: object) => {
+  return http.request<Result>("post", "/menu/update", { data });
+};
+
+/** ????-????-?? */
+export const deleteMenu = (data?: object) => {
+  return http.request<Result>("post", "/menu/delete", { data });
+};
+
+/** ????-????-?? */
+export const saveRoleMenu = (data?: object) => {
+  return http.request<Result>("post", "/role-menu/save", { data });
+};

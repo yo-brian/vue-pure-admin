@@ -4,7 +4,11 @@ interface FormItemProps {
   title: string;
   higherDeptOptions: Record<string, unknown>[];
   parentId: number;
+  roleOptions?: Array<{ id: number; name: string; code: string }>;
+  roleId?: number | null;
   nickname: string;
+  first_name?: string;
+  last_name?: string;
   username: string;
   password: string;
   phone: string | number;

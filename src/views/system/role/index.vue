@@ -320,6 +320,20 @@ onMounted(() => {
         >
           <template #default="{ node }">
             <span>{{ transformI18n(node.label) }}</span>
+            <el-tag
+              v-if="node.data?.menuType === 3"
+              size="small"
+              type="info"
+              class="ml-2"
+            >
+              按钮
+            </el-tag>
+            <span
+              v-if="node.data?.menuType === 3 && node.data?.auths"
+              class="ml-2 text-xs text-gray-500"
+            >
+              ({{ node.data.auths }})
+            </span>
           </template>
         </el-tree-v2>
       </div>

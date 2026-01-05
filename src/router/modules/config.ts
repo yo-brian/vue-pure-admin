@@ -6,6 +6,7 @@ export default {
   meta: {
     icon: "ri/settings-3-line",
     title: "配置管理",
+    auths: ["config"],
     rank: config
   },
   children: [
@@ -15,6 +16,7 @@ export default {
       component: () => import("@/views/config/areas/index.vue"),
       meta: {
         title: "检查区域",
+        auths: ["config:areas"],
         showParent: true
       }
     },
@@ -24,9 +26,19 @@ export default {
       component: () => import("@/views/config/templates/index.vue"),
       meta: {
         title: "检查模板",
+        auths: ["config:templates"],
+        showParent: true
+      }
+    },
+    {
+      path: "/config/hazard-templates",
+      name: "ConfigHazardTemplates",
+      component: () => import("@/views/hazards/templates/index.vue"),
+      meta: {
+        title: "隐患模板",
+        auths: ["config:hazard-templates"],
         showParent: true
       }
     }
   ]
 } satisfies RouteConfigsTable;
-

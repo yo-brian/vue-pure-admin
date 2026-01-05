@@ -26,6 +26,7 @@ const taskId = computed(() => Number(route.params.id));
 
 const loading = ref(false);
 const submitting = ref(false);
+const isCompleted = ref(false);
 
 const areas = ref<Area[]>([]);
 const templates = ref<CheckTemplate[]>([]);
@@ -44,6 +45,7 @@ const form = reactive<{
   template_id: number | null;
   assignee_id: number | null;
   due_date: string | null;
+  planned_date: string | null;
   is_emergency: boolean;
   custom_check_items: string[];
 }>({
@@ -56,6 +58,7 @@ const form = reactive<{
   template_id: null,
   assignee_id: null,
   due_date: null,
+  planned_date: null,
   is_emergency: false,
   custom_check_items: []
 });
@@ -117,6 +120,7 @@ const rules: FormRules = {
 };
 
 function addCustomCheckItem() {
+  if (isCompleted.value) return;
   const value = newCheckItem.value.trim();
   if (!value) return;
   if (form.custom_check_items.includes(value)) {
@@ -128,10 +132,12 @@ function addCustomCheckItem() {
 }
 
 function removeCustomCheckItem(item: string) {
+  if (isCompleted.value) return;
   form.custom_check_items = form.custom_check_items.filter(x => x !== item);
 }
 
 function fillFormFromDetail(detail: Awaited<ReturnType<typeof getTaskDetail>>) {
+  isCompleted.value = detail.status === "completed";
   form.task_type = detail.task_type;
   form.title = detail.title;
   form.description = detail.description ?? "";
@@ -141,6 +147,7 @@ function fillFormFromDetail(detail: Awaited<ReturnType<typeof getTaskDetail>>) {
   form.template_id = detail.template ?? null;
   form.assignee_id = detail.assignee;
   form.due_date = detail.due_date;
+  form.planned_date = detail.planned_date ?? detail.due_date;
   form.is_emergency = detail.is_emergency;
   const customItems = detail.item_records
     .map(r => r.custom_name?.trim())
@@ -194,6 +201,10 @@ watch(
 );
 
 async function handleSubmit() {
+  if (isCompleted.value) {
+    message("已完成任务不可编辑", { type: "warning" });
+    return;
+  }
   const ok = await formRef.value?.validate().catch(() => false);
   if (!ok) return;
 
@@ -209,6 +220,9 @@ async function handleSubmit() {
       template: form.template_id || null,
       assignee: form.assignee_id!,
       due_date: dayjs(form.due_date!).format("YYYY-MM-DD"),
+      planned_date: form.planned_date
+        ? dayjs(form.planned_date).format("YYYY-MM-DD")
+        : dayjs(form.due_date!).format("YYYY-MM-DD"),
       is_emergency: form.is_emergency,
       custom_check_items: form.custom_check_items
     });
@@ -242,141 +256,207 @@ onMounted(fetchOptionsAndDetail);
         :rules="rules"
         label-width="110px"
         status-icon
+        :disabled="isCompleted"
       >
-        <el-form-item label="标题" prop="title">
-          <el-input v-model="form.title" placeholder="请输入任务标题" />
-        </el-form-item>
-
-        <el-form-item label="描述">
-          <HtmlEditor v-model="form.description" height="180px" />
-        </el-form-item>
-
-        <el-form-item label="设备名称">
-          <el-input
-            v-model="form.equipment_name"
-            placeholder="请输入设备名称"
-          />
-        </el-form-item>
-
-        <el-form-item label="设备编号">
-          <el-input
-            v-model="form.equipment_code"
-            placeholder="请输入设备编号"
-          />
-        </el-form-item>
-
-        <el-form-item label="任务类型" prop="task_type">
-          <el-radio-group v-model="form.task_type">
-            <el-radio-button
-              v-for="opt in taskTypeOptions"
-              :key="opt.value"
-              :label="opt.value"
-            >
-              {{ opt.label }}
-            </el-radio-button>
-          </el-radio-group>
-        </el-form-item>
-
-        <el-form-item label="选择区域" prop="area_id">
-          <el-select v-model="form.area_id" placeholder="请选择区域" filterable>
-            <el-option
-              v-for="a in areas"
-              :key="a.id"
-              :label="a.name"
-              :value="a.id"
-            />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item label="是否紧急">
-          <el-switch v-model="form.is_emergency" />
-        </el-form-item>
-
-        <el-form-item label="选择模板">
-          <el-select
-            v-model="form.template_id"
-            placeholder="可留空"
-            clearable
-            filterable
-          >
-            <el-option
-              v-for="t in templates"
-              :key="t.id"
-              :label="t.name"
-              :value="t.id"
-            />
-          </el-select>
-          <span class="ml-2 text-gray-500 text-sm">
-            未选择模板时需要填写自定义检查项
-          </span>
-        </el-form-item>
-        <el-form-item v-if="isUsingTemplate" label="频率">
-          <el-input :model-value="selectedTemplateFrequencyLabel" disabled />
-        </el-form-item>
-
-        <el-form-item label="执行人" prop="assignee_id">
-          <el-select
-            v-if="isAdmin"
-            v-model="form.assignee_id"
-            placeholder="请选择执行人"
-            filterable
-          >
-            <el-option
-              v-for="u in users"
-              :key="u.id"
-              :label="userDisplayName(u)"
-              :value="u.id"
-            />
-          </el-select>
-          <el-input v-else :model-value="assigneeDisplayName" disabled />
-        </el-form-item>
-
-        <el-form-item label="截止日期" prop="due_date">
-          <el-date-picker
-            v-model="form.due_date"
-            type="date"
-            placeholder="请选择日期"
-            format="YYYY-MM-DD"
-            value-format="YYYY-MM-DD"
-          />
-        </el-form-item>
-
-        <el-form-item label="自定义检查项" prop="custom_check_items">
-          <div class="w-full">
-            <div class="flex items-center gap-2">
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="标题" prop="title">
               <el-input
-                v-model="newCheckItem"
-                placeholder="输入检查项名称，回车或点击添加"
-                @keyup.enter="addCustomCheckItem"
+                v-model="form.title"
+                placeholder="请输入任务标题"
+                :disabled="isCompleted"
               />
-              <el-button type="primary" @click="addCustomCheckItem">
-                添加
-              </el-button>
-            </div>
-            <div class="mt-2 flex flex-wrap gap-2">
-              <el-tag
-                v-for="item in form.custom_check_items"
-                :key="item"
-                closable
-                @close="removeCustomCheckItem(item)"
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="设备名称">
+              <el-input
+                v-model="form.equipment_name"
+                placeholder="请输入设备名称"
+                :disabled="isCompleted"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="设备编号">
+              <el-input
+                v-model="form.equipment_code"
+                placeholder="请输入设备编号"
+                :disabled="isCompleted"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="任务类型" prop="task_type">
+              <el-radio-group v-model="form.task_type" :disabled="isCompleted">
+                <el-radio-button
+                  v-for="opt in taskTypeOptions"
+                  :key="opt.value"
+                  :label="opt.value"
+                >
+                  {{ opt.label }}
+                </el-radio-button>
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="区域" prop="area_id">
+              <el-select
+                v-model="form.area_id"
+                placeholder="请选择区域"
+                filterable
+                :disabled="isCompleted"
               >
-                {{ item }}
-              </el-tag>
-              <span
-                v-if="form.custom_check_items.length === 0"
-                class="text-gray-500 text-sm"
+                <el-option
+                  v-for="a in areas"
+                  :key="a.id"
+                  :label="a.name"
+                  :value="a.id"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="是否紧急">
+              <el-switch v-model="form.is_emergency" :disabled="isCompleted" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="执行人" prop="assignee_id">
+              <el-select
+                v-if="isAdmin"
+                v-model="form.assignee_id"
+                placeholder="请选择执行人"
+                filterable
+                :disabled="isCompleted"
               >
-                暂无自定义检查项
+                <el-option
+                  v-for="u in users"
+                  :key="u.id"
+                  :label="userDisplayName(u)"
+                  :value="u.id"
+                />
+              </el-select>
+              <el-input v-else :model-value="assigneeDisplayName" disabled />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="截止日期" prop="due_date">
+              <el-date-picker
+                v-model="form.due_date"
+                type="date"
+                placeholder="请选择日期"
+                format="YYYY-MM-DD"
+                value-format="YYYY-MM-DD"
+                :disabled="isCompleted"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="计划日期">
+              <el-date-picker
+                v-model="form.planned_date"
+                type="date"
+                placeholder="可留空"
+                format="YYYY-MM-DD"
+                value-format="YYYY-MM-DD"
+                :disabled="isCompleted"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="可选模板">
+              <el-select
+                v-model="form.template_id"
+                placeholder="可留空"
+                clearable
+                filterable
+                :disabled="isCompleted"
+              >
+                <el-option
+                  v-for="t in templates"
+                  :key="t.id"
+                  :label="t.name"
+                  :value="t.id"
+                />
+              </el-select>
+              <span class="ml-2 text-gray-500 text-sm">
+                未选择模板时需要填写自定义检查项
               </span>
-            </div>
-          </div>
-        </el-form-item>
-
-        <el-form-item>
-          <el-button type="primary" :loading="submitting" @click="handleSubmit">
-            保存修改
-          </el-button>
-        </el-form-item>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item v-if="isUsingTemplate" label="频率">
+              <el-input
+                :model-value="selectedTemplateFrequencyLabel"
+                disabled
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="自定义检查项" prop="custom_check_items">
+              <div class="w-full">
+                <div class="flex items-center gap-2">
+                  <el-input
+                    v-model="newCheckItem"
+                    placeholder="输入检查项名称，回车或点击添加"
+                    :disabled="isCompleted"
+                    @keyup.enter="addCustomCheckItem"
+                  />
+                  <el-button
+                    type="primary"
+                    :disabled="isCompleted"
+                    @click="addCustomCheckItem"
+                  >
+                    添加
+                  </el-button>
+                </div>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  <el-tag
+                    v-for="item in form.custom_check_items"
+                    :key="item"
+                    :closable="!isCompleted"
+                    @close="removeCustomCheckItem(item)"
+                  >
+                    {{ item }}
+                  </el-tag>
+                  <span
+                    v-if="form.custom_check_items.length === 0"
+                    class="text-gray-500 text-sm"
+                  >
+                    暂无自定义检查项
+                  </span>
+                </div>
+              </div>
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="描述">
+              <HtmlEditor
+                v-if="!isCompleted"
+                v-model="form.description"
+                height="180px"
+              />
+              <div
+                v-else
+                class="task-desc-html"
+                v-html="form.description || '-'"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item>
+              <el-button
+                type="primary"
+                :loading="submitting"
+                :disabled="isCompleted"
+                @click="handleSubmit"
+              >
+                保存修改
+              </el-button>
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
     </el-card>
   </div>

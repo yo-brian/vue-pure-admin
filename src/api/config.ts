@@ -1,4 +1,5 @@
 import { http } from "@/utils/http";
+import type { PureHttpRequestConfig } from "@/utils/http/types.d";
 
 export type Area = {
   id: number;
@@ -13,12 +14,42 @@ export type CheckTemplate = {
   frequency: "daily" | "weekly" | "monthly" | "yearly";
   area: number | null;
   task_type: "scheduled" | "adhoc" | null;
-  default_due_days: number | null;
-  is_emergency_default: boolean;
+  planned_date: string | null;
+  due_date: string | null;
+  status: "active" | "inactive";
   default_hazard_level: "minor" | "major" | null;
-  attachment_required: boolean;
-  attachment_count: number | null;
+  weekly_day?: number | null;
+  monthly_day?: number | null;
+  yearly_month?: number | null;
+  yearly_day?: number | null;
   custom_items?: string[];
+};
+
+export type TemplateScheduleConfig = {
+  id: number;
+  enabled: boolean;
+  run_time: string;
+  updated_at: string;
+};
+
+export type TemplateScheduleRunLog = {
+  id: number;
+  status: "success" | "failed";
+  run_source: "manual" | "beat";
+  started_at: string;
+  finished_at: string;
+  created_count: number;
+  message?: string | null;
+  triggered_by?: number | null;
+  triggered_by_name?: string | null;
+  created_at: string;
+};
+
+export type TemplateScheduleRunParams = {
+  template_ids: number[];
+  assignee_ids?: number[];
+  start_date: string;
+  end_date: string;
 };
 
 export type CheckItem = {
@@ -86,11 +117,14 @@ export function createTemplate(payload: {
   frequency: CheckTemplate["frequency"];
   area?: number | null;
   task_type?: CheckTemplate["task_type"];
-  default_due_days?: number | null;
-  is_emergency_default?: boolean;
+  planned_date?: string | null;
+  due_date?: string | null;
+  status?: CheckTemplate["status"];
   default_hazard_level?: CheckTemplate["default_hazard_level"];
-  attachment_required?: boolean;
-  attachment_count?: number | null;
+  weekly_day?: number | null;
+  monthly_day?: number | null;
+  yearly_month?: number | null;
+  yearly_day?: number | null;
   custom_items?: string[];
 }) {
   return http.post<CheckTemplate, any>("/templates/", { data: payload });
@@ -104,11 +138,14 @@ export function updateTemplate(
     frequency: CheckTemplate["frequency"];
     area?: number | null;
     task_type?: CheckTemplate["task_type"];
-    default_due_days?: number | null;
-    is_emergency_default?: boolean;
+    planned_date?: string | null;
+    due_date?: string | null;
+    status?: CheckTemplate["status"];
     default_hazard_level?: CheckTemplate["default_hazard_level"];
-    attachment_required?: boolean;
-    attachment_count?: number | null;
+    weekly_day?: number | null;
+    monthly_day?: number | null;
+    yearly_month?: number | null;
+    yearly_day?: number | null;
     custom_items?: string[];
   }>
 ) {
@@ -128,4 +165,35 @@ export function getCheckItems() {
       params: { page_size: 100 }
     })
     .then(unwrapPaginated);
+}
+
+export function getTemplateScheduleConfig() {
+  return http.get<TemplateScheduleConfig, any>("/template-schedule-config/");
+}
+
+export function updateTemplateScheduleConfig(
+  payload: Partial<{ enabled: boolean; run_time: string }>
+) {
+  return http.post<TemplateScheduleConfig, any>("/template-schedule-config/", {
+    data: payload
+  });
+}
+
+export function getTemplateScheduleLogs(limit = 10) {
+  return http.get<TemplateScheduleRunLog[], any>("/template-schedule-logs/", {
+    params: { limit }
+  });
+}
+
+export function runTemplateScheduleNow(
+  payload: TemplateScheduleRunParams,
+  config?: PureHttpRequestConfig
+) {
+  return http.post<TemplateScheduleRunLog, any>(
+    "/template-schedule-run/",
+    {
+      data: payload
+    },
+    config
+  );
 }

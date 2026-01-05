@@ -71,6 +71,10 @@ type JwtLoginResponse = {
   refresh?: string;
   accessToken?: string;
   refreshToken?: string;
+  username?: string;
+  nickname?: string;
+  roles?: string[];
+  permissions?: string[];
 };
 
 function parseJwtExpToDate(token: string): Date {
@@ -113,7 +117,10 @@ export const getLogin = (data?: object) => {
       }
 
       const expires = parseJwtExpToDate(access);
-      const username = (data as any)?.username ?? "";
+      const username = res?.username || (data as any)?.username || "";
+      const nickname = res?.nickname || username;
+      const roles = res?.roles ?? [];
+      const permissions = res?.permissions ?? [];
 
       return {
         success: true,
@@ -122,10 +129,10 @@ export const getLogin = (data?: object) => {
           refreshToken: refresh,
           expires,
           username,
-          nickname: username,
+          nickname,
           avatar: "",
-          roles: [],
-          permissions: []
+          roles,
+          permissions
         }
       } satisfies UserResult;
     });

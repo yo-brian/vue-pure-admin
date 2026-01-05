@@ -17,9 +17,11 @@ export type Task = {
   equipment_code?: string | null;
   area: number;
   template: number | null;
+  custom_check_items?: string[];
   assignee: number;
   assignee_name?: string | null;
   due_date: string;
+  planned_date?: string | null;
   status: TaskStatus;
   is_emergency: boolean;
   created_by: number;
@@ -30,6 +32,13 @@ export type Task = {
 
 export type TaskItemRecordResult = "normal" | "abnormal" | "not_applicable";
 
+export type TaskItemRecordImage = {
+  id: number;
+  task_item_record: number;
+  image: string;
+  created_at: string;
+};
+
 export type TaskItemRecord = {
   id: number;
   task: number;
@@ -37,6 +46,7 @@ export type TaskItemRecord = {
   custom_name: string | null;
   result: TaskItemRecordResult | null;
   comment: string | null;
+  images?: TaskItemRecordImage[];
 };
 
 export type TaskDetail = Task & {
@@ -48,6 +58,8 @@ export type TaskListParams = Partial<{
   status: TaskStatus;
   assignee: number;
   is_emergency: boolean;
+  planned_date_start: string;
+  planned_date_end: string;
   all: boolean;
   page: number;
   page_size: number;
@@ -95,6 +107,7 @@ export function createAdhocTask(payload: {
   template_id?: number | null;
   assignee_id: number;
   due_date: string;
+  planned_date?: string | null;
   is_emergency?: boolean;
   custom_check_items?: string[];
 }) {
@@ -113,6 +126,7 @@ export function updateTask(
     template: number | null;
     assignee: number;
     due_date: string;
+    planned_date?: string | null;
     is_emergency: boolean;
     custom_check_items: string[];
   }>
@@ -122,4 +136,22 @@ export function updateTask(
 
 export function deleteTask(id: number) {
   return http.request<void>("delete", `/tasks/${id}/`);
+}
+
+export function batchDeleteTasks(ids: number[]) {
+  return http.post<{ success: boolean; deleted: number }, any>(
+    "/tasks/batch-delete/",
+    { data: { ids } }
+  );
+}
+
+export function uploadTaskItemRecordImage(formData: FormData) {
+  return http.post<TaskItemRecordImage, any>("/task-item-record-images/", {
+    data: formData,
+    headers: { "Content-Type": "multipart/form-data" }
+  });
+}
+
+export function deleteTaskItemRecordImage(id: number) {
+  return http.request<void>("delete", `/task-item-record-images/${id}/`);
 }
