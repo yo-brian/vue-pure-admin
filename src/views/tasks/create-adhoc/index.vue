@@ -108,8 +108,7 @@ const selectedTemplateHazardLevelLabel = computed(() => {
 });
 
 function userDisplayName(user: AppUser) {
-  const fullName = `${user.first_name ?? ""}${user.last_name ?? ""}`.trim();
-  return fullName || user.username;
+  return user.full_name?.trim() || "";
 }
 
 watch(
@@ -200,7 +199,8 @@ async function fetchOptions() {
       form.assignee_id = currentUser.value.id;
     }
     if (currentUser.value?.role === "admin") {
-      users.value = await getUsers();
+      const list = await getUsers();
+      users.value = list.filter(user => user.full_name?.trim());
     }
   } finally {
     loading.value = false;

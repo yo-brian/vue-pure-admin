@@ -474,7 +474,8 @@ async function fetchAreas() {
 }
 
 async function fetchUsers() {
-  assignees.value = await getUsers();
+  const list = await getUsers();
+  assignees.value = list.filter(user => user.full_name?.trim());
 }
 
 function handleTemplateSelection(rows: CheckTemplate[]) {
@@ -482,8 +483,8 @@ function handleTemplateSelection(rows: CheckTemplate[]) {
 }
 
 function formatAssigneeLabel(user: AppUser) {
-  const name = [user.last_name, user.first_name].filter(Boolean).join("");
-  return name ? `${user.username} (${name})` : user.username;
+  const name = user.full_name?.trim() || "";
+  return name ? `${user.username} (${name})` : "";
 }
 
 async function handleSubmit() {

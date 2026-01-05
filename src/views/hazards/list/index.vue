@@ -191,8 +191,7 @@ function buildTaskRecordFileList(images: HazardTaskItemRecordImage[]) {
 }
 
 function userDisplayName(user: AppUser) {
-  const fullName = `${user.first_name ?? ""}${user.last_name ?? ""}`.trim();
-  return fullName || user.username;
+  return user.full_name?.trim() || "";
 }
 
 function userLabelById(id?: number | null) {
@@ -469,7 +468,8 @@ async function fetchAreas() {
 }
 
 async function fetchUsers() {
-  users.value = await getUsers();
+  const list = await getUsers();
+  users.value = list.filter(user => user.full_name?.trim());
 }
 
 async function fetchHazards() {
@@ -697,7 +697,7 @@ async function handlePrintDetail() {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="负责人" min-width="120">
+        <el-table-column label="执行人" min-width="120">
           <template #default="{ row }">
             {{ taskAssigneeLabel(row) }}
           </template>

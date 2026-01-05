@@ -37,6 +37,7 @@ export type AppUser = {
   email: string;
   first_name: string;
   last_name: string;
+  full_name?: string | null;
   department?: string | null;
   role: "admin" | "inspector" | "manager";
 };

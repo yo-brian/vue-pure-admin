@@ -4,14 +4,33 @@
  * - 自动请求 /dashboard/summary/
  * - 按角色展示范围与模块
  */
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
+import { useDark, useECharts } from "@pureadmin/utils";
 import { getDashboardSummary, type DashboardSummary } from "@/api/dashboard";
 import { hasPerms } from "@/utils/auth";
 
 const router = useRouter();
 const loading = ref(false);
 const summary = ref<DashboardSummary | null>(null);
+const trendChartRef = ref();
+const hazardAreaChartRef = ref();
+const taskAreaChartRef = ref();
+const { isDark } = useDark();
+const theme = computed(() => (isDark.value ? "dark" : "light"));
+
+const { setOptions: setTrendOptions } = useECharts(trendChartRef, {
+  theme,
+  renderer: "svg"
+});
+const { setOptions: setHazardAreaOptions } = useECharts(hazardAreaChartRef, {
+  theme,
+  renderer: "svg"
+});
+const { setOptions: setTaskAreaOptions } = useECharts(taskAreaChartRef, {
+  theme,
+  renderer: "svg"
+});
 
 const roleLabel = computed(() => {
   const role = summary.value?.role;
@@ -145,6 +164,111 @@ function goTo(path: string) {
   router.push(path);
 }
 
+function emptyGraphic(text: string) {
+  return [
+    {
+      type: "text",
+      left: "center",
+      top: "middle",
+      style: {
+        text,
+        fill: "#909399",
+        fontSize: 12
+      }
+    }
+  ];
+}
+
+function updateTrendChart() {
+  const rows = trendRows.value;
+  const labels = rows.map(row => row.label);
+  const tasks = rows.map(row => row.tasks);
+  const hazards = rows.map(row => row.hazards);
+
+  setTrendOptions({
+    tooltip: { trigger: "axis" },
+    legend: {
+      data: ["完成任务", "新增隐患"],
+      top: 10
+    },
+    grid: {
+      left: 40,
+      right: 20,
+      top: 50,
+      bottom: 30
+    },
+    xAxis: {
+      type: "category",
+      data: labels,
+      axisLabel: { color: "#606266" },
+      axisTick: { alignWithLabel: true }
+    },
+    yAxis: {
+      type: "value",
+      axisLabel: { color: "#606266" },
+      splitLine: { lineStyle: { color: "#ebeef5" } }
+    },
+    series: [
+      {
+        name: "完成任务",
+        type: "line",
+        smooth: true,
+        data: tasks,
+        color: "#67C23A"
+      },
+      {
+        name: "新增隐患",
+        type: "line",
+        smooth: true,
+        data: hazards,
+        color: "#E6A23C"
+      }
+    ],
+    graphic: labels.length ? [] : emptyGraphic("暂无数据")
+  });
+}
+
+function updateAreaChart(
+  list: Array<{ name: string; count: number }>,
+  setOptions: (options: Record<string, unknown>) => void,
+  seriesName: string,
+  color: string
+) {
+  const labels = list.map(item => item.name);
+  const values = list.map(item => item.count);
+  const rotate = labels.length > 4 ? 20 : 0;
+
+  setOptions({
+    tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+    grid: {
+      left: 40,
+      right: 20,
+      top: 20,
+      bottom: 40
+    },
+    xAxis: {
+      type: "category",
+      data: labels,
+      axisLabel: { color: "#606266", interval: 0, rotate }
+    },
+    yAxis: {
+      type: "value",
+      axisLabel: { color: "#606266" },
+      splitLine: { lineStyle: { color: "#ebeef5" } }
+    },
+    series: [
+      {
+        name: seriesName,
+        type: "bar",
+        data: values,
+        barWidth: 28,
+        itemStyle: { color }
+      }
+    ],
+    graphic: labels.length ? [] : emptyGraphic("暂无数据")
+  });
+}
+
 async function fetchSummary() {
   loading.value = true;
   try {
@@ -155,6 +279,26 @@ async function fetchSummary() {
 }
 
 onMounted(fetchSummary);
+
+watch(
+  [trendRows, hazardByArea, taskByArea, theme],
+  () => {
+    updateTrendChart();
+    updateAreaChart(
+      hazardByArea.value,
+      setHazardAreaOptions,
+      "隐患数量",
+      "#409EFF"
+    );
+    updateAreaChart(
+      taskByArea.value,
+      setTaskAreaOptions,
+      "任务数量",
+      "#67C23A"
+    );
+  },
+  { immediate: true, deep: true }
+);
 </script>
 
 <template>
@@ -216,11 +360,7 @@ onMounted(fetchSummary);
             <template #header>
               <div class="section-header">近7日趋势</div>
             </template>
-            <el-table :data="trendRows" size="small" border>
-              <el-table-column prop="label" label="日期" width="90" />
-              <el-table-column prop="tasks" label="已完成任务" />
-              <el-table-column prop="hazards" label="新增隐患" />
-            </el-table>
+            <div ref="trendChartRef" class="dashboard-chart" />
           </el-card>
         </el-col>
         <el-col :xs="24" :md="12">
@@ -279,10 +419,10 @@ onMounted(fetchSummary);
             <template #header>
               <div class="section-header">隐患分布（Top 6）</div>
             </template>
-            <el-table :data="hazardByArea" size="small" border>
-              <el-table-column prop="name" label="区域" />
-              <el-table-column prop="count" label="数量" width="90" />
-            </el-table>
+            <div
+              ref="hazardAreaChartRef"
+              class="dashboard-chart dashboard-chart--compact"
+            />
           </el-card>
         </el-col>
         <el-col :xs="24" :md="12">
@@ -290,10 +430,10 @@ onMounted(fetchSummary);
             <template #header>
               <div class="section-header">任务分布（Top 6）</div>
             </template>
-            <el-table :data="taskByArea" size="small" border>
-              <el-table-column prop="name" label="区域" />
-              <el-table-column prop="count" label="数量" width="90" />
-            </el-table>
+            <div
+              ref="taskAreaChartRef"
+              class="dashboard-chart dashboard-chart--compact"
+            />
           </el-card>
         </el-col>
       </el-row>
@@ -339,5 +479,14 @@ onMounted(fetchSummary);
 
 .action-button {
   justify-content: flex-start;
+}
+
+.dashboard-chart {
+  width: 100%;
+  height: 260px;
+}
+
+.dashboard-chart--compact {
+  height: 220px;
 }
 </style>
